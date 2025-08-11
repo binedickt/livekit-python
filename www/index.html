@@ -52,8 +52,8 @@
 
       try {
         // Fetch token from token server
-        const resp = await fetch(`/token?room=${encodeURIComponent(roomName)}&username=${encodeURIComponent(participantName)}`);
-        if (!resp.ok) throw new Error(Token request failed with ${resp.status});
+        const resp = await fetch("/token?room="+encodeURIComponent(roomName)+"&username="+encodeURIComponent(participantName));
+        if (!resp.ok) throw new Error("Token request failed with " + resp.status);
         const data = await resp.json();
         const token = data.token;
 
