@@ -1,9 +1,10 @@
 {
     admin off
-    auto_https off
 }
 
-http://:80 {
+viken.stream, www.viken.stream {
+    encode gzip
+
     @livekit {
         path /rtc* /twirp* /livekit* /ws
     }
