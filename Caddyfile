@@ -2,8 +2,8 @@
     admin off
 }
 
-viken.stream, www.viken.stream {
-    encode gzip
+https://viken.stream:8443 {
+    tls your@email.com  # Let’s Encrypt still works on non-standard port if DNS validation is used
 
     @livekit {
         path /rtc* /twirp* /livekit* /ws

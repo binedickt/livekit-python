@@ -41,7 +41,7 @@ services:
     environment:
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
-      - LIVEKIT_URL=https://77.246.103.197
+      - LIVEKIT_URL=https://viken.stream:8443
     expose:
       - "8000"
     restart: unless-stopped
@@ -53,7 +53,7 @@ services:
       - token-server
     ports:
       - "80:80"
-      - "443:443"
+      - "8443:8443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
