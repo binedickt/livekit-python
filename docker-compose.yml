@@ -1,0 +1,71 @@
+version: "3.8"
+services:
+  redis:
+    image: redis:7
+    restart: unless-stopped
+
+  coturn:
+    image: instrumentisto/coturn:4.5
+    restart: unless-stopped
+    ports:
+      - "3478:3478"     # TURN/TCP & UDP (can restrict)
+      - "3478:3478/udp"
+    environment:
+      - REALM=your.domain.example
+      - LISTENING_IP=0.0.0.0
+      - EXTERNAL_IP=
+      - LT-SECRET=replace_with_long_long_term_secret
+    # For production you should mount a properly configured /etc/turnserver.conf
+    # and harden auth. See coturn docs.
+
+  livekit:
+    image: livekit/livekit-server:latest
+    depends_on:
+      - redis
+      - coturn
+    environment:
+      - LIVEKIT_REDIS_URL=redis://redis:6379/0
+      - LIVEKIT_ISSUER=YOUR_ISSUER
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - LIVEKIT_RTC_UDP_PORT=50000
+      - LIVEKIT_RTC_UDP_PORT_RANGE=50000-51000
+      # point LiveKit to TURN
+      - LIVEKIT_ICE_SERVERS=[{"urls":["stun:stun.l.google.com:19302"],"urls":["turn:your.domain.example:3478"],"username":"%username%","credential":"%password%"}]
+    ports:
+      - "7880:7880"   # REST/admin
+      - "7881:7881"   # Ingress (optional)
+      - "7882:7882"   # metrics/admin UI (if enabled)
+      - "50000-51000:50000-51000/udp"
+    restart: unless-stopped
+
+  token-server:
+    build: ./token-server
+    depends_on:
+      - livekit
+    environment:
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - LIVEKIT_URL=https://your.domain.example
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    depends_on:
+      - livekit
+      - token-server
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - /etc/caddy/certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

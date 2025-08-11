@@ -1,0 +1,10 @@
+https://77.246.103.197 {
+    tls /etc/caddy/certs/selfsigned.crt /etc/caddy/certs/selfsigned.key
+
+    encode gzip
+
+    reverse_proxy /rtc/* livekit:7880
+    reverse_proxy / livekit:7880
+
+    reverse_proxy /api/token* token-server:8000
+}
