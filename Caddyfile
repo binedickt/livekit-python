@@ -3,7 +3,7 @@
     auto_https off
 }
 
-http://[::]:80, http://0.0.0.0:80 {
+http://:80 {
     @livekit {
         path /rtc* /twirp* /livekit* /ws
     }
@@ -18,12 +18,6 @@ http://[::]:80, http://0.0.0.0:80 {
     }
     reverse_proxy @token token-server:8000
 
-    # Optional: Serve a static page or frontend files
-    root * /srv/www
-    file_server
-}
-
-http://77.246.103.197:8080 {
     root * /srv/www
     file_server
 }
