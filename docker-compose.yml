@@ -40,6 +40,7 @@ services:
     depends_on:
       - livekit
     environment:
+      - LIVEKIT_LISTEN=:7880
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
       - LIVEKIT_URL=wss://viken.stream:8443

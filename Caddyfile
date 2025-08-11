@@ -10,10 +10,11 @@ viken.stream:8443 {
         path /rtc* /twirp* /livekit* /ws
     }
     reverse_proxy @livekit livekit:7880 {
-        transport http {
-            versions h2c 1.1
-        }
+    transport http {
+        versions h2c 1.1
     }
+    flush_interval -1
+}
 
     @token {
         path /token*
