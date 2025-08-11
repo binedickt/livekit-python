@@ -1,9 +1,10 @@
 {
     admin off
+    auto_https off
 }
 
-https://viken.stream:8443 {
-    tls /etc/caddy/certs/viken.stream.crt /etc/caddy/certs/viken.stream.key
+viken.stream:8443 {
+    tls /etc/letsencrypt/live/viken.stream/fullchain.pem /etc/letsencrypt/live/viken.stream/privkey.pem
 
     @livekit {
         path /rtc* /twirp* /livekit* /ws
