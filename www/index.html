@@ -1,48 +1,87 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>LiveKit Test Client</title>
-    <style>
-        body { font-family: sans-serif; margin: 0; padding: 0; background: #f0f0f0; }
-        video { width: 45%; margin: 5px; background: black; }
-        #videos { display: flex; flex-wrap: wrap; }
-        #controls { padding: 10px; background: white; }
-    </style>
+  <meta charset="UTF-8">
+  <title>LiveKit Video Room</title>
+  <style>
+    body { font-family: sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
+    header { background: #333; color: white; padding: 1rem; text-align: center; }
+    main { padding: 1rem; }
+    input, button { padding: 0.5rem; margin: 0.25rem; }
+    video { width: 300px; height: auto; background: black; margin: 0.25rem; }
+    .videos { display: flex; flex-wrap: wrap; }
+  </style>
 </head>
 <body>
-    <div id="controls">
-        <input type="text" id="roomName" placeholder="Room Name" value="test-room">
-        <input type="text" id="username" placeholder="Your Name" value="guest">
-        <button id="joinBtn">Join Room</button>
+  <header>
+    <h1>LiveKit Test Client</h1>
+  </header>
+  <main>
+    <div>
+      <label>Room:</label>
+      <input id="roomName" type="text" value="test-room">
+      <label>Name:</label>
+      <input id="participantName" type="text" value="guest">
+      <button id="joinBtn">Join Room</button>
     </div>
-    <div id="videos"></div>
+    <div class="videos" id="videoContainer"></div>
+  </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.min.js"></script>
-    <script>
-        const livekitURL = "ws://77.246.103.197:7880"; // Your LiveKit server (WS)
-        const tokenServerURL = "http://77.246.103.197:8080/token"; // Your token server endpoint
+  <!-- LiveKit JS SDK -->
+  <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
+  <script>
+    const { connect, RoomEvent } = window.LivekitClient;
+    const joinBtn = document.getElementById('joinBtn');
+    const videoContainer = document.getElementById('videoContainer');
 
-        document.getElementById('joinBtn').onclick = async () => {
-            const roomName = document.getElementById('roomName').value;
-            const username = document.getElementById('username').value;
+    function addVideoTrack(track, participant) {
+      const videoEl = document.createElement('video');
+      videoEl.autoplay = true;
+      videoEl.playsInline = true;
+      track.attach(videoEl);
+      videoContainer.appendChild(videoEl);
 
-            // Fetch access token
-            const res = await fetch(${tokenServerURL}?room=${roomName}&username=${username});
-            const { token } = await res.json();
+      track.onEnded = () => {
+        videoEl.remove();
+      };
+    }
 
-            const room = new LivekitClient.Room();
-            room.on('participantConnected', p => console.log('Participant connected', p.identity));
-            room.on('trackSubscribed', (track, publication, participant) => {
-                if (track.kind === 'video' || track.kind === 'audio') {
-                    const elem = track.attach();
-                    document.getElementById('videos').appendChild(elem);
-                }
-            });
+    joinBtn.addEventListener('click', async () => {
+      const roomName = document.getElementById('roomName').value;
+      const participantName = document.getElementById('participantName').value;
 
-            await room.connect(livekitURL, token);
-            await room.localParticipant.enableCameraAndMicrophone();
-        };
-    </script>
+      try {
+        // Fetch token from your token server
+        const resp = await fetch(/token?room=${roomName}&username=${participantName});
+        const data = await resp.json();
+        const token = data.token;
+
+        // Connect to LiveKit
+        const room = await connect("ws://77.246.103.197:7880", token);
+
+        // Publish local tracks (camera + mic)
+        const tracks = await window.LivekitClient.createLocalTracks({ audio: true, video: true });
+        tracks.forEach(track => {
+          room.localParticipant.publishTrack(track);
+          addVideoTrack(track, room.localParticipant);
+        });
+
+        // Handle new participants
+        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          if (track.kind === 'video') {
+            addVideoTrack(track, participant);
+          }
+        });
+
+        room.on(RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach().forEach(el => el.remove());
+        });
+
+      } catch (err) {
+        console.error("Error joining room:", err);
+        alert("Failed to join room: " + err.message);
+      }
+    });
+  </script>
 </body>
 </html>
