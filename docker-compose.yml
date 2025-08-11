@@ -37,7 +37,7 @@ services:
     ports:
       - "7880:7880"  # HTTP port
       - "7881:7881"  # RTC TCP port
-      - "50000-51000:50000-51000/udp"  # RTC UDP ports
+      - "7882:7882/udp"
     networks:
       - livekit
     restart: unless-stopped
