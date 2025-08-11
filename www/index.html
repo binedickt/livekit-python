@@ -51,15 +51,22 @@
     </main>
 
     <!-- LiveKit JS SDK -->
-    <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
+    <script src="https://unpkg.com/livekit-client@1.15.13/dist/livekit-client.umd.js"></script>
     <script>
         const joinBtn = document.getElementById('joinBtn');
         const videoContainer = document.getElementById('videoContainer');
+
+        // Check if LiveKit loaded properly
+        console.log('LiveKit Client:', window.LivekitClient);
+
+        // Check if getUserMedia is available
+        console.log('getUserMedia available:', !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
 
         function addVideoTrack(track) {
             const videoEl = document.createElement('video');
             videoEl.autoplay = true;
             videoEl.playsInline = true;
+            videoEl.muted = true; // Add muted to prevent autoplay issues
             track.attach(videoEl);
             videoContainer.appendChild(videoEl);
         }
@@ -74,6 +81,11 @@
             }
 
             try {
+                // Check if we're on HTTPS or localhost
+                if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                    throw new Error('getUserMedia requires HTTPS or localhost');
+                }
+
                 // Fetch token from token server
                 const resp = await fetch(`/token?room=${encodeURIComponent(roomName)}&username=${encodeURIComponent(participantName)}`);
                 if (!resp.ok) throw new Error(`Token request failed with ${resp.status}`);
@@ -81,15 +93,32 @@
                 const data = await resp.json();
                 const token = data.token;
 
-                // Connect to LiveKit - FIXED: Create Room instance first
+                console.log('Connecting to room with token...');
+
+                // Connect to LiveKit
                 const room = new window.LivekitClient.Room();
                 await room.connect("ws://77.246.103.197:7880", token);
 
-                // Publish local camera/mic
+                console.log('Connected to room, getting local tracks...');
+
+                // Get local tracks with more explicit options
                 const tracks = await window.LivekitClient.createLocalTracks({
-                    audio: true,
-                    video: true
+                    audio: {
+                        deviceId: undefined,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                    },
+                    video: {
+                        deviceId: undefined,
+                        resolution: {
+                            width: 640,
+                            height: 480,
+                        },
+                        frameRate: 15,
+                    }
                 });
+
+                console.log('Got local tracks:', tracks);
 
                 for (const track of tracks) {
                     await room.localParticipant.publishTrack(track);
@@ -99,21 +128,25 @@
                 }
 
                 // When a new track is subscribed
-                room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+                room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    console.log('Track subscribed:', track.kind, 'from', participant.identity);
                     if (track.kind === 'video') {
                         addVideoTrack(track);
                     }
                 });
 
                 // When a track is unsubscribed
-                room.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+                room.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+                    console.log('Track unsubscribed:', track.kind, 'from', participant.identity);
                     track.detach().forEach(el => el.remove());
                 });
 
                 console.log("Successfully connected to room:", roomName);
+                joinBtn.textContent = 'Connected!';
+                joinBtn.disabled = true;
 
             } catch (err) {
-                console.error(err);
+                console.error('Full error:', err);
                 alert("Error joining room: " + err.message);
             }
         });
