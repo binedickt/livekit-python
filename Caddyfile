@@ -4,7 +4,7 @@
 }
 
 viken.stream:8443 {
-    tls /etc/letsencrypt/live/vike.stream/fullchain.pem /etc/letsencrypt/live/vike.stream/privkey.pem
+    tls /etc/letsencrypt/live/viken.stream/fullchain.pem /etc/letsencrypt/live/viken.stream/privkey.pem
 
     @livekit {
         path /rtc* /twirp* /livekit* /ws
