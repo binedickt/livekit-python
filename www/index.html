@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>LiveKit Test Client</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 0; background: #f0f0f0; }
+        video { width: 45%; margin: 5px; background: black; }
+        #videos { display: flex; flex-wrap: wrap; }
+        #controls { padding: 10px; background: white; }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <input type="text" id="roomName" placeholder="Room Name" value="test-room">
+        <input type="text" id="username" placeholder="Your Name" value="guest">
+        <button id="joinBtn">Join Room</button>
+    </div>
+    <div id="videos"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.min.js"></script>
+    <script>
+        const livekitURL = "ws://77.246.103.197:7880"; // Your LiveKit server (WS)
+        const tokenServerURL = "http://77.246.103.197:8080/token"; // Your token server endpoint
+
+        document.getElementById('joinBtn').onclick = async () => {
+            const roomName = document.getElementById('roomName').value;
+            const username = document.getElementById('username').value;
+
+            // Fetch access token
+            const res = await fetch(${tokenServerURL}?room=${roomName}&username=${username});
+            const { token } = await res.json();
+
+            const room = new LivekitClient.Room();
+            room.on('participantConnected', p => console.log('Participant connected', p.identity));
+            room.on('trackSubscribed', (track, publication, participant) => {
+                if (track.kind === 'video' || track.kind === 'audio') {
+                    const elem = track.attach();
+                    document.getElementById('videos').appendChild(elem);
+                }
+            });
+
+            await room.connect(livekitURL, token);
+            await room.localParticipant.enableCameraAndMicrophone();
+        };
+    </script>
+</body>
+</html>
