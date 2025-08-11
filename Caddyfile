@@ -1,13 +1,9 @@
 {
-    # Global options block
-    local_certs  # Use self-signed certs for HTTPS
     admin off
-    auto_https disable_redirects
+    auto_https off
 }
 
-https://77.246.103.197 {
-    tls internal
-
+http://77.246.103.197 {
     @livekit {
         path /rtc* /twirp* /livekit* /ws
     }

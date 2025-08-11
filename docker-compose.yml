@@ -24,17 +24,14 @@ services:
       - coturn
     environment:
       - LIVEKIT_REDIS_URL=redis://redis:6379/0
-      - LIVEKIT_ISSUER=YOUR_ISSUER
-      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
-      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
-      # We are NOT binding the UDP range to host
+      - LIVEKIT_KEYS=${LIVEKIT_KEYS}
       - LIVEKIT_RTC_UDP_PORT=50000
       - LIVEKIT_RTC_UDP_PORT_RANGE=50000-51000
-      - LIVEKIT_ICE_SERVERS=[{"urls":["stun:stun.l.google.com:19302"]},{"urls":["turn:77.246.103.197:3478"],"username":"%username%","credential":"%password%"}]
+      - LIVEKIT_ICE_SERVERS=[{"urls":["stun:stun.l.google.com:19302"],"urls":["turn:77.246.103.197:3478"],"username":"%username%","credential":"%password%"}]
     ports:
-      - "7880:7880"   # REST/admin
-      - "7881:7881"   # Ingress (optional)
-      - "7882:7882"   # metrics/admin UI (if enabled)
+      - "7880:7880"       # REST/admin
+      - "7881:7881"       # Ingress (optional)
+      - "7882:7882"       # Metrics/admin UI (if enabled)
     restart: unless-stopped
 
   token-server:
