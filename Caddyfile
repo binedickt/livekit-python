@@ -7,14 +7,16 @@ viken.stream:8443 {
     tls /etc/letsencrypt/live/viken.stream/fullchain.pem /etc/letsencrypt/live/viken.stream/privkey.pem
 
     @livekit {
-        path /rtc* /twirp* /livekit* /ws
+        path /rtc* /twirp* /livekit* /ws*
     }
     reverse_proxy @livekit livekit:7880 {
-    transport http {
-        versions h2c 1.1
+        header_up Upgrade websocket
+        header_up Connection upgrade
+        header_up Host {http.request.host}
+        header_up X-Real-IP {http.request.remote}
+        header_up X-Forwarded-For {http.request.remote}
+        header_up X-Forwarded-Proto {http.request.scheme}
     }
-    flush_interval -1
-}
 
     @token {
         path /token*
@@ -23,4 +25,9 @@ viken.stream:8443 {
 
     root * /srv/www
     file_server
+}
+
+# Optional: Add HTTP to HTTPS redirect
+viken.stream:80 {
+    redir https://viken.stream:8443{uri} permanent
 }

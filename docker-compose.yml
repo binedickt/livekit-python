@@ -4,6 +4,8 @@ services:
   redis:
     image: redis:7
     restart: unless-stopped
+    networks:
+      - livekit
 
   coturn:
     image: instrumentisto/coturn:4.5
@@ -15,8 +17,10 @@ services:
       - REALM=viken.stream
       - LISTENING_IP=0.0.0.0
       - EXTERNAL_IP=77.246.103.197
-      - LT-SECRET=super_long_secure_secret_here
-    # In production, mount /etc/turnserver.conf for hardened config
+      - LT_CRED_MECH=longterm
+      - STATIC_SECRET=super_long_secure_secret_here
+    networks:
+      - livekit
 
   livekit:
     image: livekit/livekit-server:latest
@@ -27,12 +31,15 @@ services:
       - LIVEKIT_REDIS_URL=redis://redis:6379/0
       - LIVEKIT_KEYS=${LIVEKIT_KEYS}
       - LIVEKIT_RTC_UDP_PORT=50000
-      - LIVEKIT_RTC_UDP_PORT_RANGE=50000-51000
-      - LIVEKIT_ICE_SERVERS=[{"urls":["stun:stun.l.google.com:19302","turn:viken.stream:3478"],"username":"%username%","credential":"%password%"}]
-    expose:
-      - "7880"
-      - "7881"
-      - "7882"
+      - LIVEKIT_RTC_TCP_PORT=7881
+      - LIVEKIT_RTC_PORT_RANGE_START=50000
+      - LIVEKIT_RTC_PORT_RANGE_END=51000
+    ports:
+      - "7880:7880"  # HTTP port
+      - "7881:7881"  # RTC TCP port
+      - "50000-51000:50000-51000/udp"  # RTC UDP ports
+    networks:
+      - livekit
     restart: unless-stopped
 
   token-server:
@@ -40,12 +47,13 @@ services:
     depends_on:
       - livekit
     environment:
-      - LIVEKIT_LISTEN=:7880
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
-      - LIVEKIT_URL=wss://viken.stream:8443
-    expose:
-      - "8000"
+      - LIVEKIT_URL=ws://livekit:7880  # Use internal URL
+    ports:
+      - "8000:8000"
+    networks:
+      - livekit
     restart: unless-stopped
 
   caddy:
@@ -54,7 +62,8 @@ services:
       - livekit
       - token-server
     ports:
-      - "8080:80"
+      - "80:80"
+      - "443:443"
       - "8443:8443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
@@ -62,7 +71,13 @@ services:
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks:
+      - livekit
     restart: unless-stopped
+
+networks:
+  livekit:
+    driver: bridge
 
 volumes:
   caddy_data:
