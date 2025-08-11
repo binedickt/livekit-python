@@ -22,3 +22,8 @@ http://[::]:80, http://0.0.0.0:80 {
     root * /srv/www
     file_server
 }
+
+http://77.246.103.197:8080 {
+    root * /srv/www
+    file_server
+}
