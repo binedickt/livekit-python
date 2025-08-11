@@ -1,91 +1,122 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>LiveKit Video Room</title>
-  <style>
-    body { font-family: sans-serif; background: #f5f5f5; margin: 0; padding: 0; }
-    header { background: #333; color: white; padding: 1rem; text-align: center; }
-    main { padding: 1rem; }
-    input, button { padding: 0.5rem; margin: 0.25rem; }
-    video { width: 300px; height: auto; background: black; margin: 0.25rem; }
-    .videos { display: flex; flex-wrap: wrap; }
-  </style>
+    <meta charset="UTF-8">
+    <title>LiveKit Video Room</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background: #333;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        main {
+            padding: 1rem;
+        }
+        input, button {
+            padding: 0.5rem;
+            margin: 0.25rem;
+        }
+        video {
+            width: 300px;
+            height: auto;
+            background: black;
+            margin: 0.25rem;
+        }
+        .videos {
+            display: flex;
+            flex-wrap: wrap;
+        }
+    </style>
 </head>
 <body>
-  <header>
-    <h1>LiveKit Test Client</h1>
-  </header>
-  <main>
-    <div>
-      <label>Room:</label>
-      <input id="roomName" type="text" value="test-room">
-      <label>Name:</label>
-      <input id="participantName" type="text" value="guest">
-      <button id="joinBtn">Join Room</button>
-    </div>
-    <div class="videos" id="videoContainer"></div>
-  </main>
+    <header>
+        <h1>LiveKit Test Client</h1>
+    </header>
+    <main>
+        <div>
+            <label>Room:</label>
+            <input id="roomName" type="text" value="test-room">
+            <label>Name:</label>
+            <input id="participantName" type="text" value="guest">
+            <button id="joinBtn">Join Room</button>
+        </div>
+        <div class="videos" id="videoContainer"></div>
+    </main>
 
-  <!-- LiveKit JS SDK -->
-  <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
-  <script>
-    const joinBtn = document.getElementById('joinBtn');
-    const videoContainer = document.getElementById('videoContainer');
+    <!-- LiveKit JS SDK -->
+    <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
+    <script>
+        const joinBtn = document.getElementById('joinBtn');
+        const videoContainer = document.getElementById('videoContainer');
 
-    function addVideoTrack(track) {
-      const videoEl = document.createElement('video');
-      videoEl.autoplay = true;
-      videoEl.playsInline = true;
-      track.attach(videoEl);
-      videoContainer.appendChild(videoEl);
-    }
-
-    joinBtn.addEventListener('click', async () => {
-      const roomName = document.getElementById('roomName').value.trim();
-      const participantName = document.getElementById('participantName').value.trim();
-
-      if (!roomName || !participantName) {
-        alert("Please enter both room and name");
-        return;
-      }
-
-      try {
-        // Fetch token from token server
-        const resp = await fetch("/token?room="+encodeURIComponent(roomName)+"&username="+encodeURIComponent(participantName));
-        if (!resp.ok) throw new Error("Token request failed with " + resp.status);
-        const data = await resp.json();
-        const token = data.token;
-
-        // Connect to LiveKit
-        const room = await window.LivekitClient.connect("ws://77.246.103.197:7880", token);
-
-        // Publish local camera/mic
-        const tracks = await window.LivekitClient.createLocalTracks({ audio: true, video: true });
-        for (const track of tracks) {
-          room.localParticipant.publishTrack(track);
-          if (track.kind === 'video') {
-            addVideoTrack(track);
-          }
+        function addVideoTrack(track) {
+            const videoEl = document.createElement('video');
+            videoEl.autoplay = true;
+            videoEl.playsInline = true;
+            track.attach(videoEl);
+            videoContainer.appendChild(videoEl);
         }
 
-        // When a new track is subscribed
-        room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track) => {
-          if (track.kind === 'video') {
-            addVideoTrack(track);
-          }
-        });
+        joinBtn.addEventListener('click', async () => {
+            const roomName = document.getElementById('roomName').value.trim();
+            const participantName = document.getElementById('participantName').value.trim();
 
-        // When a track is unsubscribed
-        room.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
-          track.detach().forEach(el => el.remove());
-        });
+            if (!roomName || !participantName) {
+                alert("Please enter both room and name");
+                return;
+            }
 
-      } catch (err) {
-        console.error(err);
-        alert("Error joining room: " + err.message);
-      }
-    });
-  </script>
+            try {
+                // Fetch token from token server
+                const resp = await fetch(`/token?room=${encodeURIComponent(roomName)}&username=${encodeURIComponent(participantName)}`);
+                if (!resp.ok) throw new Error(`Token request failed with ${resp.status}`);
+
+                const data = await resp.json();
+                const token = data.token;
+
+                // Connect to LiveKit - FIXED: Create Room instance first
+                const room = new window.LivekitClient.Room();
+                await room.connect("ws://77.246.103.197:7880", token);
+
+                // Publish local camera/mic
+                const tracks = await window.LivekitClient.createLocalTracks({
+                    audio: true,
+                    video: true
+                });
+
+                for (const track of tracks) {
+                    await room.localParticipant.publishTrack(track);
+                    if (track.kind === 'video') {
+                        addVideoTrack(track);
+                    }
+                }
+
+                // When a new track is subscribed
+                room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+                    if (track.kind === 'video') {
+                        addVideoTrack(track);
+                    }
+                });
+
+                // When a track is unsubscribed
+                room.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+                    track.detach().forEach(el => el.remove());
+                });
+
+                console.log("Successfully connected to room:", roomName);
+
+            } catch (err) {
+                console.error(err);
+                alert("Error joining room: " + err.message);
+            }
+        });
+    </script>
 </body>
 </html>
