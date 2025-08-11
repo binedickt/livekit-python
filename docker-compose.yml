@@ -8,15 +8,14 @@ services:
     image: instrumentisto/coturn:4.5
     restart: unless-stopped
     ports:
-      - "3478:3478"     # TURN/TCP & UDP (can restrict)
-      - "3478:3478/udp"
+      - "3478:3478"     # TURN/TCP
+      - "3478:3478/udp" # TURN/UDP
     environment:
-      - REALM=your.domain.example
+      - REALM=77.246.103.197
       - LISTENING_IP=0.0.0.0
-      - EXTERNAL_IP=
-      - LT-SECRET=replace_with_long_long_term_secret
-    # For production you should mount a properly configured /etc/turnserver.conf
-    # and harden auth. See coturn docs.
+      - EXTERNAL_IP=77.246.103.197
+      - LT-SECRET=super_long_secure_secret_here
+    # In production, mount /etc/turnserver.conf for hardened config
 
   livekit:
     image: livekit/livekit-server:latest
@@ -28,15 +27,14 @@ services:
       - LIVEKIT_ISSUER=YOUR_ISSUER
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      # We are NOT binding the UDP range to host
       - LIVEKIT_RTC_UDP_PORT=50000
       - LIVEKIT_RTC_UDP_PORT_RANGE=50000-51000
-      # point LiveKit to TURN
-      - LIVEKIT_ICE_SERVERS=[{"urls":["stun:stun.l.google.com:19302"],"urls":["turn:your.domain.example:3478"],"username":"%username%","credential":"%password%"}]
+      - LIVEKIT_ICE_SERVERS=[{"urls":["stun:stun.l.google.com:19302"]},{"urls":["turn:77.246.103.197:3478"],"username":"%username%","credential":"%password%"}]
     ports:
       - "7880:7880"   # REST/admin
       - "7881:7881"   # Ingress (optional)
       - "7882:7882"   # metrics/admin UI (if enabled)
-      - "50000-51000:50000-51000/udp"
     restart: unless-stopped
 
   token-server:
@@ -46,7 +44,7 @@ services:
     environment:
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
-      - LIVEKIT_URL=https://your.domain.example
+      - LIVEKIT_URL=https://77.246.103.197
     expose:
       - "8000"
     restart: unless-stopped
