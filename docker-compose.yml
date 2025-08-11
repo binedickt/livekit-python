@@ -52,13 +52,14 @@ services:
       - livekit
       - token-server
     ports:
-      - "80:80"
+      - "8080:80"
       - "8443:8443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./www:/srv/www
+      - /etc/letsencrypt:/etc/letsencrypt:ro
       - caddy_data:/data
       - caddy_config:/config
-      - ./www:/srv/www
     restart: unless-stopped
 
 volumes:
