@@ -97,7 +97,7 @@
 
                 // Connect to LiveKit
                 const room = new window.LivekitClient.Room();
-                await room.connect("ws://77.246.103.197:7880", token);
+                await room.connect("wss://viken.stream:8443", token);
 
                 console.log('Connected to room, getting local tracks...');
 
