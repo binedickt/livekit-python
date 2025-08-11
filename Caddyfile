@@ -1,10 +1,28 @@
+{
+    # Global options block
+    local_certs  # Use self-signed certs for HTTPS
+    admin off
+    auto_https disable_redirects
+}
+
 https://77.246.103.197 {
-    tls /etc/caddy/certs/selfsigned.crt /etc/caddy/certs/selfsigned.key
+    tls internal
 
-    encode gzip
+    @livekit {
+        path /rtc* /twirp* /livekit* /ws
+    }
+    reverse_proxy @livekit livekit:7880 {
+        transport http {
+            versions h2c 1.1
+        }
+    }
 
-    reverse_proxy /rtc/* livekit:7880
-    reverse_proxy / livekit:7880
+    @token {
+        path /token*
+    }
+    reverse_proxy @token token-server:8000
 
-    reverse_proxy /api/token* token-server:8000
+    # Optional: Serve a static page or frontend files
+    # root * /srv/www
+    # file_server
 }
