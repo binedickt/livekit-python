@@ -30,56 +30,60 @@
   <!-- LiveKit JS SDK -->
   <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
   <script>
-    const { connect, RoomEvent } = window.LivekitClient;
     const joinBtn = document.getElementById('joinBtn');
     const videoContainer = document.getElementById('videoContainer');
 
-    function addVideoTrack(track, participant) {
+    function addVideoTrack(track) {
       const videoEl = document.createElement('video');
       videoEl.autoplay = true;
       videoEl.playsInline = true;
       track.attach(videoEl);
       videoContainer.appendChild(videoEl);
-
-      track.onEnded = () => {
-        videoEl.remove();
-      };
     }
 
     joinBtn.addEventListener('click', async () => {
-      const roomName = document.getElementById('roomName').value;
-      const participantName = document.getElementById('participantName').value;
+      const roomName = document.getElementById('roomName').value.trim();
+      const participantName = document.getElementById('participantName').value.trim();
+
+      if (!roomName || !participantName) {
+        alert("Please enter both room and name");
+        return;
+      }
 
       try {
-        // Fetch token from your token server
-        const resp = await fetch(/token?room=${roomName}&username=${participantName});
+        // Fetch token from token server
+        const resp = await fetch(/token?room=${encodeURIComponent(roomName)}&username=${encodeURIComponent(participantName)});
+        if (!resp.ok) throw new Error(Token request failed with ${resp.status});
         const data = await resp.json();
         const token = data.token;
 
         // Connect to LiveKit
-        const room = await connect("ws://77.246.103.197:7880", token);
+        const room = await window.LivekitClient.connect("ws://77.246.103.197:7880", token);
 
-        // Publish local tracks (camera + mic)
+        // Publish local camera/mic
         const tracks = await window.LivekitClient.createLocalTracks({ audio: true, video: true });
-        tracks.forEach(track => {
+        for (const track of tracks) {
           room.localParticipant.publishTrack(track);
-          addVideoTrack(track, room.localParticipant);
-        });
-
-        // Handle new participants
-        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
           if (track.kind === 'video') {
-            addVideoTrack(track, participant);
+            addVideoTrack(track);
+          }
+        }
+
+        // When a new track is subscribed
+        room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind === 'video') {
+            addVideoTrack(track);
           }
         });
 
-        room.on(RoomEvent.TrackUnsubscribed, (track) => {
+        // When a track is unsubscribed
+        room.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
           track.detach().forEach(el => el.remove());
         });
 
       } catch (err) {
-        console.error("Error joining room:", err);
-        alert("Failed to join room: " + err.message);
+        console.error(err);
+        alert("Error joining room: " + err.message);
       }
     });
   </script>
