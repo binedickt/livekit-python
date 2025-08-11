@@ -62,8 +62,7 @@ services:
       - livekit
       - token-server
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
       - "8443:8443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
