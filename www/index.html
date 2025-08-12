@@ -421,14 +421,29 @@
             // Subscribe to any already-connected participants
             currentRoom.participants.forEach(p => {
                 console.log('Existing participant after connect:', p.identity, 'SID:', p.sid);
-                console.log('Participant tracks:', Array.from(p.trackPublications.entries()).map(([sid, pub]) => ({
+                console.log('Participant trackPublications:', p.trackPublications ? Array.from(p.trackPublications.entries()).map(([sid, pub]) => ({
                     sid,
                     kind: pub.kind,
                     isSubscribed: pub.isSubscribed,
                     track: !!pub.track
-                })));
+                })) : 'No trackPublications available');
                 subscribeToParticipantTracks(p, false);
             });
+
+            // Re-check tracks after a short delay to handle timing issues
+            setTimeout(() => {
+                console.log('Re-checking existing participants after 1s...');
+                currentRoom.participants.forEach(p => {
+                    console.log('Re-checking participant:', p.identity, 'SID:', p.sid);
+                    console.log('Participant trackPublications:', p.trackPublications ? Array.from(p.trackPublications.entries()).map(([sid, pub]) => ({
+                        sid,
+                        kind: pub.kind,
+                        isSubscribed: pub.isSubscribed,
+                        track: !!pub.track
+                    })) : 'No trackPublications available');
+                    subscribeToParticipantTracks(p, false);
+                });
+            }, 1000);
 
             // Publish local tracks (audio + video)
             const localTracks = await window.LivekitClient.createLocalTracks({
@@ -457,17 +472,23 @@
                 removeTrack(track, participant);
             });
 
-            // Explicitly subscribe to all published tracks
-            participant.trackPublications.forEach(pub => {
-                console.log(`Processing track publication: ${pub.kind}, SID: ${pub.trackSid}, isSubscribed: ${pub.isSubscribed}, hasTrack: ${!!pub.track}`);
-                if (pub.track && pub.isSubscribed) {
-                    console.log(`Handling subscribed track: ${pub.kind} for ${participant.identity}`);
-                    handleTrack(pub.track, participant, isLocal);
-                } else if (!pub.isSubscribed) {
-                    console.log(`Subscribing to track: ${pub.kind}, SID: ${pub.trackSid} for ${participant.identity}`);
-                    participant.subscribeToTrack(pub.trackSid);
-                }
-            });
+            // Check if trackPublications exists and is a Map
+            if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
+                participant.trackPublications.forEach(pub => {
+                    console.log(`Processing track publication: ${pub.kind}, SID: ${pub.trackSid}, isSubscribed: ${pub.isSubscribed}, hasTrack: ${!!pub.track}`);
+                    if (pub.track && pub.isSubscribed) {
+                        console.log(`Handling subscribed track: ${pub.kind} for ${participant.identity}`);
+                        handleTrack(pub.track, participant, isLocal);
+                    } else if (!pub.isSubscribed) {
+                        console.log(`Subscribing to track: ${pub.kind}, SID: ${pub.trackSid} for ${participant.identity}`);
+                        participant.subscribeToTrack(pub.trackSid).catch(err => {
+                            console.error(`Failed to subscribe to track ${pub.trackSid} for ${participant.identity}:`, err);
+                        });
+                    }
+                });
+            } else {
+                console.log(`No trackPublications for participant: ${participant.identity}`);
+            }
         }
 
         function leaveRoom() {
