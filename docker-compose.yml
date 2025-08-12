@@ -41,15 +41,22 @@ services:
     networks:
       - livekit
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7880/"]
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   token-server:
     build: ./token-server
     depends_on:
-      - livekit
+      livekit:
+        condition: service_healthy
     environment:
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
       - LIVEKIT_URL=ws://livekit:7880  # Use internal URL
+      - JWT_SECRET=${JWT_SECRET}
     ports:
       - "8000:8000"
     networks:
