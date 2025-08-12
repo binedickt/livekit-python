@@ -349,8 +349,21 @@
                     throw new Error(data.error || 'Failed to get access token');
                 }
                 
-                // Connect to LiveKit room
+                // Create Room instance
                 currentRoom = new window.LivekitClient.Room();
+
+                // Wait for full connection before accessing participants
+                currentRoom.once(window.LivekitClient.RoomEvent.Connected, () => {
+                    for (const participant of currentRoom.participants.values()) {
+                        for (const publication of participant.trackPublications.values()) {
+                            if (publication.track && publication.track.kind === 'video') {
+                                addVideoTrack(publication.track, participant.name || participant.identity);
+                            }
+                        }
+                    }
+                });
+
+                // Connect to room
                 await currentRoom.connect(data.url, data.token);
                 
                 // Get and publish local tracks
@@ -366,15 +379,6 @@
                     await currentRoom.localParticipant.publishTrack(track);
                     if (track.kind === 'video') {
                         addVideoTrack(track, 'You');
-                    }
-                }
-                
-                // Add already existing remote participants' video tracks
-                for (const participant of currentRoom.participants.values()) {
-                    for (const publication of participant.trackPublications.values()) {
-                        if (publication.track && publication.track.kind === 'video') {
-                            addVideoTrack(publication.track, participant.name || participant.identity);
-                        }
                     }
                 }
                 
