@@ -403,13 +403,14 @@
 
                 // After connection, attach already subscribed video tracks from existing participants
                 currentRoom.participants.forEach(participant => {
-                    participant.trackPublications.forEach(publication => {
-                        if (publication.track && publication.track.kind === 'video') {
-                            addVideoTrack(publication.track, participant.name || participant.identity);
-                        }
-                    });
+                    if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
+                        participant.trackPublications.forEach(publication => {
+                            if (publication.track && publication.track.kind === 'video') {
+                                addVideoTrack(publication.track, participant.name || participant.identity);
+                            }
+                        });
+                    }
 
-                    // Listen for new tracks published by this participant after you joined
                     participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, (track) => {
                         if (track.kind === 'video') {
                             addVideoTrack(track, participant.name || participant.identity);
