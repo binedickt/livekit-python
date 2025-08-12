@@ -9,7 +9,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -18,7 +18,7 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .container {
             background: white;
             border-radius: 12px;
@@ -27,22 +27,22 @@
             width: 90%;
             max-width: 500px;
         }
-        
+
         .header {
             background: #333;
             color: white;
             padding: 2rem;
             text-align: center;
         }
-        
+
         .content {
             padding: 2rem;
         }
-        
+
         .login-form, .room-interface {
             display: none;
         }
-        
+
         .login-form.active, .room-interface.active {
             display: block;
         }
@@ -205,6 +205,7 @@
     <script>
         let currentUser = null;
         let currentRoom = null;
+        let joined = false;  // track join state
 
         // Check if user is already logged in
         checkAuthStatus();
@@ -292,6 +293,8 @@
                 currentRoom.disconnect();
                 currentRoom = null;
             }
+            joined = false;
+            updateJoinButtonState();
 
             document.getElementById('videoContainer').innerHTML = '';
             showLoginForm();
@@ -328,109 +331,121 @@
             }
         }
 
-        document.getElementById('joinBtn').addEventListener('click', joinRoom);
+        // Join button event listener with state toggle
+        const joinBtn = document.getElementById('joinBtn');
+        joinBtn.addEventListener('click', async () => {
+            joinBtn.disabled = true;
+
+            if (!joined) {
+                try {
+                    await joinRoom();
+                    joined = true;
+                } catch (e) {
+                    console.error('Error joining room:', e);
+                    showMessage('roomMessage', e.message || 'Error joining room', 'error');
+                }
+            } else {
+                leaveRoom();
+                joined = false;
+            }
+
+            updateJoinButtonState();
+            joinBtn.disabled = false;
+        });
+
+        function updateJoinButtonState() {
+            if (joined) {
+                joinBtn.textContent = 'Leave Room';
+            } else {
+                joinBtn.textContent = 'Join Room';
+            }
+        }
 
         async function joinRoom() {
             const roomName = document.getElementById('roomSelect').value;
             if (!roomName) {
-                showMessage('roomMessage', 'Please select a room', 'error');
-                return;
+                throw new Error('Please select a room');
             }
 
-            const joinBtn = document.getElementById('joinBtn');
-            joinBtn.disabled = true;
-            joinBtn.textContent = 'Joining...';
+            // Clear any previous video elements
+            document.getElementById('videoContainer').innerHTML = '';
 
-            try {
-                // Get token for the room
-                const response = await fetch(`/token?room=${encodeURIComponent(roomName)}`, {
-                    credentials: 'include'
-                });
+            // Get token for the room
+            const response = await fetch(`/token?room=${encodeURIComponent(roomName)}`, {
+                credentials: 'include'
+            });
 
-                const data = await response.json();
+            const data = await response.json();
 
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to get access token');
-                }
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to get access token');
+            }
 
-                // Connect to LiveKit room
-                currentRoom = new window.LivekitClient.Room();
+            currentRoom = new window.LivekitClient.Room();
 
-                // Listen for participants joining after you
-                currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
-                    console.log('Participant connected:', participant.identity);
+            // Handle participant connected event for future participants
+            currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
+                console.log('Participant connected:', participant.identity);
 
-                    participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, (track) => {
-                        if (track.kind === 'video') {
-                            addVideoTrack(track, participant.name || participant.identity);
-                        }
-                    });
-                });
-
-                // Listen for track subscriptions for remote participants
-                currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed,
-                    (track, publication, participant) => {
-                        if (track.kind === 'video') {
-                            addVideoTrack(track, participant.name || participant.identity);
-                        }
-                    }
-                );
-
-                // Listen for track unsubscriptions (remove video element)
-                currentRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed,
-                    (track, publication, participant) => {
-                        track.detach().forEach(el => el.remove());
-                    }
-                );
-
-                await currentRoom.connect(data.url, data.token);
-
-                // Publish local tracks (mic + camera)
-                const tracks = await window.LivekitClient.createLocalTracks({
-                    audio: true,
-                    video: {
-                        resolution: { width: 640, height: 480 },
-                        frameRate: 15,
-                    }
-                });
-
-                for (const track of tracks) {
-                    await currentRoom.localParticipant.publishTrack(track);
+                participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, (track) => {
                     if (track.kind === 'video') {
-                        addVideoTrack(track, 'You');
+                        addVideoTrack(track, participant.name || participant.identity);
+                    }
+                });
+            });
+
+            // Handle new track subscription on room
+            currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed,
+                (track, publication, participant) => {
+                    if (track.kind === 'video') {
+                        addVideoTrack(track, participant.name || participant.identity);
                     }
                 }
+            );
 
-                // After connection, attach already subscribed video tracks from existing participants
-                currentRoom.participants.forEach(participant => {
-                    if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
-                        participant.trackPublications.forEach(publication => {
-                            if (publication.track && publication.track.kind === 'video') {
-                                addVideoTrack(publication.track, participant.name || participant.identity);
-                            }
-                        });
-                    }
+            // Remove video on track unsubscribed
+            currentRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed,
+                (track, publication, participant) => {
+                    track.detach().forEach(el => el.remove());
+                }
+            );
 
-                    participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, (track) => {
-                        if (track.kind === 'video') {
-                            addVideoTrack(track, participant.name || participant.identity);
-                        }
-                    });
-                });
+            await currentRoom.connect(data.url, data.token);
 
-                showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
-                joinBtn.textContent = 'Leave Room';
-                joinBtn.onclick = leaveRoom;
+            // Publish local tracks (audio + video)
+            const tracks = await window.LivekitClient.createLocalTracks({
+                audio: true,
+                video: {
+                    resolution: { width: 640, height: 480 },
+                    frameRate: 15,
+                }
+            });
 
-            } catch (error) {
-                console.error('Join room error:', error);
-                showMessage('roomMessage', error.message, 'error');
-            } finally {
-                joinBtn.disabled = false;
-                if (joinBtn.textContent === 'Joining...') {
-                    joinBtn.textContent = 'Join Room';
+            for (const track of tracks) {
+                await currentRoom.localParticipant.publishTrack(track);
+                if (track.kind === 'video') {
+                    addVideoTrack(track, 'You');
                 }
             }
+
+            // Attach video tracks of existing participants
+            currentRoom.participants.forEach(participant => {
+                if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
+                    participant.trackPublications.forEach(publication => {
+                        if (publication.track && publication.track.kind === 'video') {
+                            addVideoTrack(publication.track, participant.name || participant.identity);
+                        }
+                    });
+                }
+
+                participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, (track) => {
+                    if (track.kind === 'video') {
+                        addVideoTrack(track, participant.name || participant.identity);
+                    }
+                });
+            });
+
+            showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
         }
 
         function leaveRoom() {
@@ -440,16 +455,13 @@
             }
 
             document.getElementById('videoContainer').innerHTML = '';
-            const joinBtn = document.getElementById('joinBtn');
-            joinBtn.textContent = 'Join Room';
-            joinBtn.onclick = joinRoom;
             showMessage('roomMessage', 'Left the room', 'success');
         }
 
         function addVideoTrack(track, participantName) {
             const videoContainer = document.getElementById('videoContainer');
 
-            // Avoid adding duplicates
+            // Avoid duplicates
             const existing = videoContainer.querySelector(`video[data-track-id="${track.sid}"]`);
             if (existing) return;
 
@@ -489,7 +501,7 @@
 
         function showRoomInterface() {
             if (!currentUser) {
-                console.error('Invalid currentUser object:', currentUser);
+                console.warn('Invalid currentUser object:', currentUser);
                 showLoginForm();
                 return;
             }
