@@ -9,7 +9,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -18,7 +18,7 @@
             align-items: center;
             justify-content: center;
         }
-        
+
         .container {
             background: white;
             border-radius: 12px;
@@ -27,37 +27,37 @@
             width: 90%;
             max-width: 500px;
         }
-        
+
         .header {
             background: #333;
             color: white;
             padding: 2rem;
             text-align: center;
         }
-        
+
         .content {
             padding: 2rem;
         }
-        
+
         .login-form, .room-interface {
             display: none;
         }
-        
+
         .login-form.active, .room-interface.active {
             display: block;
         }
-        
+
         .form-group {
             margin-bottom: 1.5rem;
         }
-        
+
         label {
             display: block;
             margin-bottom: 0.5rem;
             font-weight: 500;
             color: #333;
         }
-        
+
         input, select, button {
             width: 100%;
             padding: 0.75rem;
@@ -66,12 +66,12 @@
             font-size: 1rem;
             transition: border-color 0.2s;
         }
-        
+
         input:focus, select:focus {
             outline: none;
             border-color: #667eea;
         }
-        
+
         button {
             background: #667eea;
             color: white;
@@ -80,16 +80,16 @@
             font-weight: 500;
             transition: background 0.2s;
         }
-        
+
         button:hover {
             background: #5a6fd8;
         }
-        
+
         button:disabled {
             background: #ccc;
             cursor: not-allowed;
         }
-        
+
         .user-info {
             background: #f8f9fa;
             padding: 1rem;
@@ -97,12 +97,12 @@
             margin-bottom: 1.5rem;
             border-left: 4px solid #667eea;
         }
-        
+
         .user-info h3 {
             margin-bottom: 0.5rem;
             color: #333;
         }
-        
+
         .error {
             background: #fee;
             color: #c33;
@@ -111,7 +111,7 @@
             margin-bottom: 1rem;
             border-left: 4px solid #c33;
         }
-        
+
         .success {
             background: #efe;
             color: #363;
@@ -120,51 +120,50 @@
             margin-bottom: 1rem;
             border-left: 4px solid #363;
         }
-        
+
         .video-container {
             display: flex;
             flex-wrap: wrap;
             gap: 1rem;
             margin-top: 1.5rem;
         }
-        
-        .video-wrapper {
+
+        .participant-wrapper {
             position: relative;
             display: inline-block;
-            width: 200px;
-            height: 150px;
-            background: #000;
             border-radius: 6px;
             overflow: hidden;
+            background: #000;
         }
 
         video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .name-label {
-            position: absolute;
-            bottom: 25px;
-            left: 5px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 12px;
+            width: 200px;
+            height: 150px;
+            display: block;
         }
 
-        .mute-button {
+        .name-label {
             position: absolute;
             bottom: 5px;
             left: 5px;
             background: rgba(0,0,0,0.7);
             color: white;
-            border: none;
+            padding: 2px 6px;
             border-radius: 3px;
+            font-size: 12px;
+            user-select: none;
+        }
+
+        .mute-button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(0,0,0,0.7);
+            border: none;
+            color: white;
             padding: 2px 6px;
             font-size: 12px;
+            border-radius: 3px;
             cursor: pointer;
             user-select: none;
         }
@@ -174,7 +173,7 @@
             gap: 1rem;
             margin-top: 1rem;
         }
-        
+
         .room-controls button {
             flex: 1;
         }
@@ -186,7 +185,7 @@
             <h1>🎥 Secure Video Rooms</h1>
             <p>LiveKit with Authentication</p>
         </div>
-        
+
         <div class="content">
             <!-- Login Form -->
             <div class="login-form active">
@@ -197,16 +196,16 @@
                         <input type="text" id="username" name="username" required />
                         <small>Try: admin, user1, or guest</small>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="password">Password:</label>
                         <input type="password" id="password" name="password" required />
                     </div>
-                    
+
                     <button type="submit" id="loginBtn">Login</button>
                 </form>
             </div>
-            
+
             <!-- Room Interface -->
             <div class="room-interface">
                 <div class="user-info">
@@ -214,21 +213,21 @@
                     <p>Permissions: <span id="userPermissions"></span></p>
                     <button onclick="logout()" style="width: auto; padding: 0.5rem 1rem; margin-top: 0.5rem;">Logout</button>
                 </div>
-                
+
                 <div id="roomMessage"></div>
-                
+
                 <div class="form-group">
                     <label for="roomSelect">Select Room:</label>
                     <select id="roomSelect">
                         <option value="">Loading rooms...</option>
                     </select>
                 </div>
-                
+
                 <div class="room-controls">
                     <button id="joinBtn">Join Room</button>
                     <button id="createRoomBtn" style="display: none;">Create Room</button>
                 </div>
-                
+
                 <div class="video-container" id="videoContainer"></div>
             </div>
         </div>
@@ -239,21 +238,22 @@
     <script>
         let currentUser = null;
         let currentRoom = null;
+        let joined = false;  // track join state
 
-        // Check if user is already logged in
         checkAuthStatus();
 
         async function checkAuthStatus() {
             try {
-                const response = await fetch('/me', {
-                    credentials: 'include'
-                });
-                
+                const response = await fetch('/me', { credentials: 'include' });
                 if (response.ok) {
                     const data = await response.json();
-                    currentUser = data.user;
-                    showRoomInterface();
-                    await loadAvailableRooms();
+                    if (data.user) {
+                        currentUser = data.user;
+                        showRoomInterface();
+                        await loadAvailableRooms();
+                    } else {
+                        showLoginForm();
+                    }
                 } else {
                     showLoginForm();
                 }
@@ -262,32 +262,28 @@
                 showLoginForm();
             }
         }
-        
+
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             await login();
         });
-        
+
         async function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const loginBtn = document.getElementById('loginBtn');
-            
+
             loginBtn.disabled = true;
             loginBtn.textContent = 'Logging in...';
-            
+
             try {
                 const response = await fetch('/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({ username, password })
                 });
-                
                 const data = await response.json();
-                
                 if (response.ok) {
                     currentUser = data.user;
                     showMessage('loginMessage', 'Login successful!', 'success');
@@ -306,36 +302,29 @@
                 loginBtn.textContent = 'Login';
             }
         }
-        
+
         async function logout() {
             try {
-                await fetch('/logout', {
-                    method: 'POST',
-                    credentials: 'include'
-                });
+                await fetch('/logout', { method: 'POST', credentials: 'include' });
             } catch (error) {
                 console.error('Logout error:', error);
             }
-            
             currentUser = null;
             if (currentRoom) {
                 currentRoom.disconnect();
                 currentRoom = null;
             }
-            
+            joined = false;
+            updateJoinButtonState();
             document.getElementById('videoContainer').innerHTML = '';
             showLoginForm();
         }
-        
+
         async function loadAvailableRooms() {
             try {
-                const response = await fetch('/rooms', {
-                    credentials: 'include'
-                });
-                
+                const response = await fetch('/rooms', { credentials: 'include' });
                 const data = await response.json();
                 const roomSelect = document.getElementById('roomSelect');
-                
                 if (response.ok) {
                     roomSelect.innerHTML = '<option value="">Select a room...</option>';
                     data.rooms.forEach(room => {
@@ -344,8 +333,6 @@
                         option.textContent = room.display_name;
                         roomSelect.appendChild(option);
                     });
-                    
-                    // Show create room button for users with permission
                     if (currentUser.permissions.includes('create_room')) {
                         document.getElementById('createRoomBtn').style.display = 'block';
                     }
@@ -357,184 +344,229 @@
                 showMessage('roomMessage', 'Failed to load rooms', 'error');
             }
         }
-        
-        document.getElementById('joinBtn').addEventListener('click', joinRoom);
-        
+
+        const joinBtn = document.getElementById('joinBtn');
+        joinBtn.addEventListener('click', async () => {
+            joinBtn.disabled = true;
+            if (!joined) {
+                try {
+                    await joinRoom();
+                    joined = true;
+                } catch (e) {
+                    console.error('Error joining room:', e);
+                    showMessage('roomMessage', e.message || 'Error joining room', 'error');
+                }
+            } else {
+                leaveRoom();
+                joined = false;
+            }
+            updateJoinButtonState();
+            joinBtn.disabled = false;
+        });
+
+        function updateJoinButtonState() {
+            joinBtn.textContent = joined ? 'Leave Room' : 'Join Room';
+        }
+
         async function joinRoom() {
             const roomName = document.getElementById('roomSelect').value;
-            if (!roomName) {
-                showMessage('roomMessage', 'Please select a room', 'error');
-                return;
-            }
-            
-            const joinBtn = document.getElementById('joinBtn');
-            joinBtn.disabled = true;
-            joinBtn.textContent = 'Joining...';
-            
-            try {
-                // Get token for the room
-                const response = await fetch(`/token?room=${encodeURIComponent(roomName)}`, {
-                    credentials: 'include'
-                });
-                
-                const data = await response.json();
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to get access token');
-                }
-                
-                // Disconnect if already connected
-                if (currentRoom) {
-                    currentRoom.disconnect();
-                    currentRoom = null;
-                }
+            if (!roomName) throw new Error('Please select a room');
+            document.getElementById('videoContainer').innerHTML = '';
 
-                // Connect to LiveKit room
-                currentRoom = new window.LivekitClient.Room();
-                await currentRoom.connect(data.url, data.token);
+            const response = await fetch(`/token?room=${encodeURIComponent(roomName)}`, { credentials: 'include' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to get access token');
 
-                // Clear any existing videos
-                document.getElementById('videoContainer').innerHTML = '';
+            currentRoom = new window.LivekitClient.Room();
 
-                // Create local tracks with audio + video enabled
-                const tracks = await window.LivekitClient.createLocalTracks({
-                    audio: true,
-                    video: {
-                        resolution: { width: 640, height: 480 },
-                        frameRate: 15,
+            // Participant connected event
+            currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
+                console.log('Participant connected:', participant.identity);
+                participant.tracks.forEach(publication => {
+                    if (publication.isSubscribed) {
+                        handleTrack(publication.track, participant);
                     }
                 });
-                
-                for (const track of tracks) {
-                    await currentRoom.localParticipant.publishTrack(track);
-                    // Show video or audio (audio will be attached to a video element too)
-                    addTrackElement(track, currentRoom.localParticipant.name || 'You', currentRoom.localParticipant.sid);
-                }
+                participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, track => {
+                    handleTrack(track, participant);
+                });
+                participant.on(window.LivekitClient.ParticipantEvent.TrackUnsubscribed, track => {
+                    removeTrack(track);
+                });
+            });
 
-                // Handle remote participant track subscribed
-                currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed,
-                    (track, publication, participant) => {
-                        addTrackElement(track, participant.name || participant.identity, participant.sid);
+            // Participant disconnected event
+            currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
+                console.log('Participant disconnected:', participant.identity);
+                removeParticipantTracks(participant);
+            });
+
+            // Handle tracks for existing participants immediately
+            currentRoom.participants.forEach(participant => {
+                participant.tracks.forEach(publication => {
+                    if (publication.isSubscribed) {
+                        handleTrack(publication.track, participant);
                     }
-                );
+                });
+                participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, track => {
+                    handleTrack(track, participant);
+                });
+                participant.on(window.LivekitClient.ParticipantEvent.TrackUnsubscribed, track => {
+                    removeTrack(track);
+                });
+            });
 
-                // Handle track unsubscribed - remove video/audio elements
-                currentRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed,
-                    (track, publication, participant) => {
-                        removeTrackElement(track);
-                    }
-                );
+            await currentRoom.connect(data.url, data.token);
 
-                // Remove video/audio elements when participant disconnects
-                currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected,
-                    participant => {
-                        removeParticipantTracks(participant.sid);
-                    }
-                );
+            // Create and publish local audio + video tracks
+            const tracks = await window.LivekitClient.createLocalTracks({
+                audio: true,
+                video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
+            });
 
-                showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
-                joinBtn.textContent = 'Leave Room';
-                joinBtn.onclick = leaveRoom;
-            } catch (error) {
-                console.error('Join room error:', error);
-                showMessage('roomMessage', error.message, 'error');
-            } finally {
-                joinBtn.disabled = false;
-                if (joinBtn.textContent === 'Joining...') {
-                    joinBtn.textContent = 'Join Room';
-                }
+            for (const track of tracks) {
+                await currentRoom.localParticipant.publishTrack(track);
+                handleTrack(track, currentRoom.localParticipant, true);
             }
+
+            showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
         }
-        
+
         function leaveRoom() {
             if (currentRoom) {
                 currentRoom.disconnect();
                 currentRoom = null;
             }
-            
             document.getElementById('videoContainer').innerHTML = '';
-            const joinBtn = document.getElementById('joinBtn');
-            joinBtn.textContent = 'Join Room';
-            joinBtn.onclick = joinRoom;
             showMessage('roomMessage', 'Left the room', 'success');
         }
-        
-        function addTrackElement(track, participantName, participantSid) {
-            const videoContainer = document.getElementById('videoContainer');
 
-            // Remove existing video/audio element for the same track if any
-            const existingEl = videoContainer.querySelector(`[data-track-id="${track.sid}"]`);
-            if (existingEl) {
-                existingEl.parentElement.remove();
+        function handleTrack(track, participant, isLocal = false) {
+            if (track.kind === 'video') {
+                addVideoTrack(track, participant.name || participant.identity, participant.sid, isLocal);
+            } else if (track.kind === 'audio') {
+                addAudioTrack(track, participant.name || participant.identity, participant.sid, isLocal);
             }
+        }
 
-            // Create container wrapper
+        function removeTrack(track) {
+            const videoContainer = document.getElementById('videoContainer');
+            const elements = videoContainer.querySelectorAll(`[data-track-id="${track.sid}"]`);
+            elements.forEach(el => {
+                if (track.kind === 'video') {
+                    track.detach().forEach(detachedEl => detachedEl.remove());
+                }
+                el.remove();
+            });
+        }
+
+        function removeParticipantTracks(participant) {
+            participant.tracks.forEach(publication => {
+                if (publication.track) {
+                    removeTrack(publication.track);
+                }
+            });
+        }
+
+        function addVideoTrack(track, participantName, participantSid, isLocal) {
+            const videoContainer = document.getElementById('videoContainer');
+            // Remove existing element with this track id to avoid duplicates
+            const existing = videoContainer.querySelector(`[data-track-id="${track.sid}"]`);
+            if (existing) existing.parentElement.remove();
+
             const wrapper = document.createElement('div');
-            wrapper.className = 'video-wrapper';
+            wrapper.className = 'participant-wrapper';
 
-            // Create label for participant name
+            const video = document.createElement('video');
+            video.autoplay = true;
+            video.playsInline = true;
+            video.muted = isLocal;  // mute local video to prevent echo
+            video.setAttribute('data-track-id', track.sid);
+            video.setAttribute('data-participant-sid', participantSid);
+            track.attach(video);
+
+            wrapper.appendChild(video);
+
             const nameLabel = document.createElement('div');
             nameLabel.className = 'name-label';
             nameLabel.textContent = participantName;
-
-            // Create mute button only for audio tracks
-            let muteButton = null;
-            if (track.kind === 'audio') {
-                muteButton = document.createElement('button');
-                muteButton.className = 'mute-button';
-                muteButton.textContent = 'Mute';
-                muteButton.title = 'Mute/unmute audio';
-
-                muteButton.onclick = () => {
-                    track.enabled = !track.enabled;
-                    muteButton.textContent = track.enabled ? 'Mute' : 'Unmute';
-                };
-            }
-
-            if (track.kind === 'video' || track.kind === 'audio') {
-                const mediaEl = document.createElement(track.kind === 'video' ? 'video' : 'audio');
-                mediaEl.autoplay = true;
-                mediaEl.playsInline = true;
-                if (track.kind === 'video') {
-                    mediaEl.muted = participantName === 'You'; // mute own video audio
-                } else {
-                    // For audio, always unmuted by default
-                    mediaEl.muted = false;
-                    mediaEl.controls = false;
-                }
-
-                mediaEl.setAttribute('data-track-id', track.sid);
-                mediaEl.setAttribute('data-participant-sid', participantSid);
-
-                track.attach(mediaEl);
-                wrapper.appendChild(mediaEl);
-            }
-
             wrapper.appendChild(nameLabel);
-            if (muteButton) wrapper.appendChild(muteButton);
+
+            // Add mute button for local participant's video (toggle mic)
+            if (isLocal) {
+                const muteBtn = document.createElement('button');
+                muteBtn.className = 'mute-button';
+                muteBtn.textContent = 'Mute Mic';
+                muteBtn.onclick = () => {
+                    if (track.isEnabled) {
+                        track.setEnabled(false);
+                        muteBtn.textContent = 'Unmute Mic';
+                    } else {
+                        track.setEnabled(true);
+                        muteBtn.textContent = 'Mute Mic';
+                    }
+                };
+                wrapper.appendChild(muteBtn);
+            }
 
             videoContainer.appendChild(wrapper);
         }
 
-        function removeTrackElement(track) {
+        function addAudioTrack(track, participantName, participantSid, isLocal) {
             const videoContainer = document.getElementById('videoContainer');
-            const el = videoContainer.querySelector(`[data-track-id="${track.sid}"]`);
-            if (el) {
-                track.detach().forEach(element => element.remove());
-                if (el.parentElement) el.parentElement.remove();
-            }
-        }
+            // Remove existing element with this track id to avoid duplicates
+            const existing = videoContainer.querySelector(`[data-track-id="${track.sid}"]`);
+            if (existing) existing.parentElement.remove();
 
-        function removeParticipantTracks(participantSid) {
-            const videoContainer = document.getElementById('videoContainer');
-            const elements = videoContainer.querySelectorAll(`[data-participant-sid="${participantSid}"]`);
-            elements.forEach(el => {
-                // Detach tracks if possible
-                if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
-                    el.srcObject = null;
+            // Create an invisible audio element to play audio
+            const audio = document.createElement('audio');
+            audio.autoplay = true;
+            audio.controls = false;
+            audio.setAttribute('data-track-id', track.sid);
+            audio.setAttribute('data-participant-sid', participantSid);
+            track.attach(audio);
+
+            // For remote participants, add a mute/unmute button to toggle audio playback
+            const wrapper = document.createElement('div');
+            wrapper.className = 'participant-wrapper';
+
+            // We'll add a black box placeholder for audio-only participant
+            const placeholder = document.createElement('div');
+            placeholder.style.width = '200px';
+            placeholder.style.height = '150px';
+            placeholder.style.background = '#222';
+            placeholder.style.display = 'flex';
+            placeholder.style.alignItems = 'center';
+            placeholder.style.justifyContent = 'center';
+            placeholder.style.color = '#fff';
+            placeholder.style.fontSize = '14px';
+            placeholder.style.userSelect = 'none';
+            placeholder.textContent = 'Audio Only';
+
+            wrapper.appendChild(placeholder);
+
+            const nameLabel = document.createElement('div');
+            nameLabel.className = 'name-label';
+            nameLabel.textContent = participantName;
+            wrapper.appendChild(nameLabel);
+
+            const muteBtn = document.createElement('button');
+            muteBtn.className = 'mute-button';
+            muteBtn.textContent = 'Mute Audio';
+
+            muteBtn.onclick = () => {
+                if (audio.muted) {
+                    audio.muted = false;
+                    muteBtn.textContent = 'Mute Audio';
+                } else {
+                    audio.muted = true;
+                    muteBtn.textContent = 'Unmute Audio';
                 }
-                if (el.parentElement) el.parentElement.remove();
-            });
+            };
+
+            wrapper.appendChild(muteBtn);
+
+            videoContainer.appendChild(wrapper);
         }
 
         function showLoginForm() {
@@ -558,7 +590,6 @@
         function showMessage(containerId, message, type) {
             const container = document.getElementById(containerId);
             container.innerHTML = `<div class="${type}">${message}</div>`;
-
             if (type === 'success') {
                 setTimeout(() => {
                     container.innerHTML = '';
