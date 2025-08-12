@@ -404,22 +404,29 @@
 
             // Connect first
             await currentRoom.connect(data.url, data.token);
+            console.log('Connected to room:', roomName);
 
             // Set up participant connected event
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
-                console.log('Participant connected:', participant.identity);
+                console.log('Participant connected:', participant.identity, 'SID:', participant.sid);
                 subscribeToParticipantTracks(participant, false);
             });
 
             // Set up participant disconnected event
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
-                console.log('Participant disconnected:', participant.identity);
+                console.log('Participant disconnected:', participant.identity, 'SID:', participant.sid);
                 removeParticipantTracks(participant);
             });
 
             // Subscribe to any already-connected participants
             currentRoom.participants.forEach(p => {
-                console.log('Existing participant after connect:', p.identity);
+                console.log('Existing participant after connect:', p.identity, 'SID:', p.sid);
+                console.log('Participant tracks:', Array.from(p.trackPublications.entries()).map(([sid, pub]) => ({
+                    sid,
+                    kind: pub.kind,
+                    isSubscribed: pub.isSubscribed,
+                    track: !!pub.track
+                })));
                 subscribeToParticipantTracks(p, false);
             });
 
@@ -431,6 +438,7 @@
 
             for (const track of localTracks) {
                 await currentRoom.localParticipant.publishTrack(track);
+                console.log('Published local track:', track.kind);
                 handleTrack(track, currentRoom.localParticipant, true);
             }
 
@@ -438,18 +446,25 @@
         }
 
         function subscribeToParticipantTracks(participant, isLocal) {
+            console.log(`Subscribing to tracks for participant: ${participant.identity}, isLocal: ${isLocal}`);
             participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, track => {
+                console.log(`Track subscribed: ${track.kind} from ${participant.identity}`);
                 handleTrack(track, participant, isLocal);
             });
 
             participant.on(window.LivekitClient.ParticipantEvent.TrackUnsubscribed, track => {
+                console.log(`Track unsubscribed: ${track.kind} from ${participant.identity}`);
                 removeTrack(track, participant);
             });
 
-            participant.trackPublications?.forEach(pub => {
-                if (pub.track) {
+            // Explicitly subscribe to all published tracks
+            participant.trackPublications.forEach(pub => {
+                console.log(`Processing track publication: ${pub.kind}, SID: ${pub.trackSid}, isSubscribed: ${pub.isSubscribed}, hasTrack: ${!!pub.track}`);
+                if (pub.track && pub.isSubscribed) {
+                    console.log(`Handling subscribed track: ${pub.kind} for ${participant.identity}`);
                     handleTrack(pub.track, participant, isLocal);
                 } else if (!pub.isSubscribed) {
+                    console.log(`Subscribing to track: ${pub.kind}, SID: ${pub.trackSid} for ${participant.identity}`);
                     participant.subscribeToTrack(pub.trackSid);
                 }
             });
@@ -464,8 +479,6 @@
             showMessage('roomMessage', 'Left the room', 'success');
         }
 
-        // === Track handling functions ===
-
         function getParticipantWrapper(participantSid) {
             const videoContainer = document.getElementById('videoContainer');
             let wrapper = videoContainer.querySelector(`.participant-wrapper[data-participant-sid="${participantSid}"]`);
@@ -479,38 +492,39 @@
         }
 
         function handleTrack(track, participant, isLocal = false) {
+            console.log(`Handling track: ${track.kind} for ${participant.identity}, isLocal: ${isLocal}`);
             const wrapper = getParticipantWrapper(participant.sid);
 
             if (track.kind === 'video') {
-                // Remove old video if any
                 const oldVideo = wrapper.querySelector('video');
                 if (oldVideo) {
+                    console.log(`Removing old video for ${participant.identity}`);
                     track.detach().forEach(el => el.remove());
                     oldVideo.remove();
                 }
                 const video = document.createElement('video');
                 video.autoplay = true;
                 video.playsInline = true;
-                video.muted = isLocal; // mute local video to avoid echo
+                video.muted = isLocal;
+                console.log(`Attaching video track for ${participant.identity}`);
                 track.attach(video);
                 wrapper.appendChild(video);
-            } 
-            else if (track.kind === 'audio') {
-                // Remove old audio if any
+            } else if (track.kind === 'audio') {
                 const oldAudio = wrapper.querySelector('audio');
                 if (oldAudio) {
+                    console.log(`Removing old audio for ${participant.identity}`);
                     track.detach().forEach(el => el.remove());
                     oldAudio.remove();
                 }
                 const audio = document.createElement('audio');
                 audio.autoplay = true;
                 audio.controls = false;
-                audio.muted = isLocal; // mute local audio (optional)
+                audio.muted = isLocal;
+                console.log(`Attaching audio track for ${participant.identity}`);
                 track.attach(audio);
                 wrapper.appendChild(audio);
             }
 
-            // Add or update participant name label (only once)
             let nameLabel = wrapper.querySelector('.name-label');
             if (!nameLabel) {
                 nameLabel = document.createElement('div');
@@ -519,7 +533,6 @@
                 wrapper.appendChild(nameLabel);
             }
 
-            // Add or update mute button (for audio control)
             let muteBtn = wrapper.querySelector('.mute-button');
             if (!muteBtn) {
                 muteBtn = document.createElement('button');
@@ -527,7 +540,6 @@
                 muteBtn.textContent = isLocal ? 'Mute Mic' : 'Mute Audio';
                 muteBtn.onclick = () => {
                     if (isLocal) {
-                        // Toggle local audio track enabled state
                         const audioPub = currentRoom.localParticipant.audioTracks.values().next().value;
                         if (!audioPub) return;
                         const track = audioPub.track;
@@ -539,7 +551,6 @@
                             muteBtn.textContent = 'Mute Mic';
                         }
                     } else {
-                        // Toggle remote audio playback mute/unmute
                         const audio = wrapper.querySelector('audio');
                         if (!audio) return;
                         audio.muted = !audio.muted;
@@ -551,6 +562,7 @@
         }
 
         function removeTrack(track, participant) {
+            console.log(`Removing track: ${track.kind} for ${participant.identity}`);
             const wrapper = getParticipantWrapper(participant.sid);
             if (!wrapper) return;
 
@@ -568,7 +580,6 @@
                 }
             }
 
-            // If no more tracks remain in wrapper, remove entire participant container
             const hasVideo = !!wrapper.querySelector('video');
             const hasAudio = !!wrapper.querySelector('audio');
             if (!hasVideo && !hasAudio) {
@@ -577,6 +588,7 @@
         }
 
         function removeParticipantTracks(participant) {
+            console.log(`Removing participant tracks for ${participant.identity}`);
             const videoContainer = document.getElementById('videoContainer');
             const wrapper = videoContainer.querySelector(`.participant-wrapper[data-participant-sid="${participant.sid}"]`);
             if (wrapper) {
