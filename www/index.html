@@ -396,30 +396,34 @@
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'Failed to get access token');
 
-            currentRoom = new window.LivekitClient.Room();
+            currentRoom = new window.LivekitClient.Room({
+                adaptiveStream: true,
+                dynacast: true,
+                autoSubscribe: true // Enable auto-subscription to all tracks
+            });
 
-            // 1️⃣ Connect first
+            // Connect first
             await currentRoom.connect(data.url, data.token);
 
-            // 2️⃣ Set up participant connected event
+            // Set up participant connected event
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
                 console.log('Participant connected:', participant.identity);
                 subscribeToParticipantTracks(participant, false);
             });
 
-            // 3️⃣ Set up participant disconnected event
+            // Set up participant disconnected event
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
                 console.log('Participant disconnected:', participant.identity);
                 removeParticipantTracks(participant);
             });
 
-            // 4️⃣ Subscribe to any already-connected participants
+            // Subscribe to any already-connected participants
             currentRoom.participants.forEach(p => {
                 console.log('Existing participant after connect:', p.identity);
                 subscribeToParticipantTracks(p, false);
             });
 
-            // 5️⃣ Publish local tracks (audio + video)
+            // Publish local tracks (audio + video)
             const localTracks = await window.LivekitClient.createLocalTracks({
                 audio: true,
                 video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
@@ -445,6 +449,8 @@
             participant.trackPublications?.forEach(pub => {
                 if (pub.track) {
                     handleTrack(pub.track, participant, isLocal);
+                } else if (!pub.isSubscribed) {
+                    participant.subscribeToTrack(pub.trackSid);
                 }
             });
         }
