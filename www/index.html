@@ -1,51 +1,394 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>LiveKit Video Chat</title>
+    <meta charset="UTF-8" />
+    <title>LiveKit Video Room - Secure</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #222; color: #fff; }
-        #videoContainer { display: flex; flex-wrap: wrap; gap: 10px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .header {
+            background: #333;
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .login-form, .room-interface {
+            display: none;
+        }
+
+        .login-form.active, .room-interface.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #5a6fd8;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .user-info {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #667eea;
+        }
+
+        .user-info h3 {
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #c33;
+        }
+
+        .success {
+            background: #efe;
+            color: #363;
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #363;
+        }
+
+        .video-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
         .participant-wrapper {
             position: relative;
+            display: inline-block;
+            width: 200px;
+            height: 150px;
             background: #000;
-            padding: 5px;
             border-radius: 6px;
+            overflow: hidden;
         }
-        video { width: 300px; height: 200px; background: #000; }
-        .name-tag {
+
+        .participant-wrapper video,
+        .participant-wrapper audio {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .participant-wrapper audio {
+            height: auto;
+            width: 100%;
+            display: none; /* Hide audio element, just play sound */
+        }
+
+        .name-label {
             position: absolute;
             bottom: 5px;
             left: 5px;
-            background: rgba(0,0,0,0.5);
-            padding: 2px 5px;
-            font-size: 14px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 2px 6px;
             border-radius: 3px;
+            font-size: 12px;
+            user-select: none;
         }
-        button { margin: 5px; padding: 8px 12px; }
+
+        .mute-button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .room-controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .room-controls button {
+            flex: 1;
+        }
     </style>
 </head>
 <body>
-    <h2>LiveKit Video Chat</h2>
-    <label>
-        Room:
-        <input type="text" id="roomSelect" placeholder="Enter room name">
-    </label>
-    <br>
-    <button onclick="joinRoom()">Join Room</button>
-    <button onclick="disconnectRoom()">Disconnect</button>
-    <button onclick="toggleMute()" id="muteBtn">Mute</button>
-    <div id="roomMessage"></div>
-    <div id="videoContainer"></div>
+    <div class="container">
+        <div class="header">
+            <h1>🎥 Secure Video Rooms</h1>
+            <p>LiveKit with Authentication</p>
+        </div>
 
-    <script src="https://unpkg.com/livekit-client/dist/livekit-client.umd.js"></script>
+        <div class="content">
+            <!-- Login Form -->
+            <div class="login-form active">
+                <div id="loginMessage"></div>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="username">Username:</label>
+                        <input type="text" id="username" name="username" required />
+                        <small>Try: admin, user1, or guest</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Password:</label>
+                        <input type="password" id="password" name="password" required />
+                    </div>
+
+                    <button type="submit" id="loginBtn">Login</button>
+                </form>
+            </div>
+
+            <!-- Room Interface -->
+            <div class="room-interface">
+                <div class="user-info">
+                    <h3>Welcome, <span id="userName"></span>!</h3>
+                    <p>Permissions: <span id="userPermissions"></span></p>
+                    <button onclick="logout()" style="width: auto; padding: 0.5rem 1rem; margin-top: 0.5rem;">Logout</button>
+                </div>
+
+                <div id="roomMessage"></div>
+
+                <div class="form-group">
+                    <label for="roomSelect">Select Room:</label>
+                    <select id="roomSelect">
+                        <option value="">Loading rooms...</option>
+                    </select>
+                </div>
+
+                <div class="room-controls">
+                    <button id="joinBtn">Join Room</button>
+                    <button id="createRoomBtn" style="display: none;">Create Room</button>
+                </div>
+
+                <div class="video-container" id="videoContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LiveKit JS SDK -->
+    <script src="https://unpkg.com/livekit-client@1.15.13/dist/livekit-client.umd.js"></script>
     <script>
-        let currentRoom;
-        let isMuted = false;
+        let currentUser = null;
+        let currentRoom = null;
+        let joined = false;
+
+        checkAuthStatus();
+
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/me', { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.user) {
+                        currentUser = data.user;
+                        showRoomInterface();
+                        await loadAvailableRooms();
+                    } else {
+                        showLoginForm();
+                    }
+                } else {
+                    showLoginForm();
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                showLoginForm();
+            }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await login();
+        });
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('loginBtn');
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Logging in...';
+
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentUser = data.user;
+                    showMessage('loginMessage', 'Login successful!', 'success');
+                    setTimeout(() => {
+                        showRoomInterface();
+                        loadAvailableRooms();
+                    }, 1000);
+                } else {
+                    showMessage('loginMessage', data.error || 'Login failed', 'error');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showMessage('loginMessage', 'Network error occurred', 'error');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Login';
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('/logout', { method: 'POST', credentials: 'include' });
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+
+            currentUser = null;
+            if (currentRoom) {
+                currentRoom.disconnect();
+                currentRoom = null;
+            }
+            joined = false;
+            updateJoinButtonState();
+
+            document.getElementById('videoContainer').innerHTML = '';
+            showLoginForm();
+        }
+
+        async function loadAvailableRooms() {
+            try {
+                const response = await fetch('/rooms', { credentials: 'include' });
+                const data = await response.json();
+                const roomSelect = document.getElementById('roomSelect');
+
+                if (response.ok) {
+                    roomSelect.innerHTML = '<option value="">Select a room...</option>';
+                    data.rooms.forEach(room => {
+                        const option = document.createElement('option');
+                        option.value = room.name;
+                        option.textContent = room.display_name;
+                        roomSelect.appendChild(option);
+                    });
+
+                    if (currentUser.permissions.includes('create_room')) {
+                        document.getElementById('createRoomBtn').style.display = 'block';
+                    }
+                } else {
+                    showMessage('roomMessage', data.error || 'Failed to load rooms', 'error');
+                }
+            } catch (error) {
+                console.error('Failed to load rooms:', error);
+                showMessage('roomMessage', 'Failed to load rooms', 'error');
+            }
+        }
+
+        const joinBtn = document.getElementById('joinBtn');
+        joinBtn.addEventListener('click', async () => {
+            joinBtn.disabled = true;
+
+            if (!joined) {
+                try {
+                    await joinRoom();
+                    joined = true;
+                } catch (e) {
+                    console.error('Error joining room:', e);
+                    showMessage('roomMessage', e.message || 'Error joining room', 'error');
+                }
+            } else {
+                leaveRoom();
+                joined = false;
+            }
+
+            updateJoinButtonState();
+            joinBtn.disabled = false;
+        });
+
+        function updateJoinButtonState() {
+            joinBtn.textContent = joined ? 'Leave Room' : 'Join Room';
+        }
 
         async function joinRoom() {
             const roomName = document.getElementById('roomSelect').value;
-            if (!roomName) throw new Error('Please enter a room name');
+            if (!roomName) throw new Error('Please select a room');
 
             document.getElementById('videoContainer').innerHTML = '';
 
@@ -58,25 +401,25 @@
             // 1️⃣ Connect first
             await currentRoom.connect(data.url, data.token);
 
-            // 2️⃣ Listeners for new participants
+            // 2️⃣ Set up participant connected event
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
                 console.log('Participant connected:', participant.identity);
                 subscribeToParticipantTracks(participant, false);
             });
 
-            // 3️⃣ Listeners for disconnection
+            // 3️⃣ Set up participant disconnected event
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
                 console.log('Participant disconnected:', participant.identity);
                 removeParticipantTracks(participant);
             });
 
-            // 4️⃣ Handle already connected participants
+            // 4️⃣ Subscribe to any already-connected participants
             currentRoom.participants.forEach(p => {
                 console.log('Existing participant after connect:', p.identity);
                 subscribeToParticipantTracks(p, false);
             });
 
-            // 5️⃣ Publish local tracks
+            // 5️⃣ Publish local tracks (audio + video)
             const localTracks = await window.LivekitClient.createLocalTracks({
                 audio: true,
                 video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
@@ -106,82 +449,161 @@
             });
         }
 
-        function handleTrack(track, participant, isLocal) {
-            const participantId = participant.sid || participant.identity;
-            let wrapper = document.getElementById(`wrapper-${participantId}`);
+        function leaveRoom() {
+            if (currentRoom) {
+                currentRoom.disconnect();
+                currentRoom = null;
+            }
+            document.getElementById('videoContainer').innerHTML = '';
+            showMessage('roomMessage', 'Left the room', 'success');
+        }
+
+        // === Track handling functions ===
+
+        function getParticipantWrapper(participantSid) {
+            const videoContainer = document.getElementById('videoContainer');
+            let wrapper = videoContainer.querySelector(`.participant-wrapper[data-participant-sid="${participantSid}"]`);
             if (!wrapper) {
                 wrapper = document.createElement('div');
-                wrapper.id = `wrapper-${participantId}`;
                 wrapper.className = 'participant-wrapper';
-                const nameTag = document.createElement('div');
-                nameTag.className = 'name-tag';
-                nameTag.textContent = isLocal ? `${participant.identity} (You)` : participant.identity;
-                wrapper.appendChild(nameTag);
-                document.getElementById('videoContainer').appendChild(wrapper);
+                wrapper.setAttribute('data-participant-sid', participantSid);
+                videoContainer.appendChild(wrapper);
             }
+            return wrapper;
+        }
+
+        function handleTrack(track, participant, isLocal = false) {
+            const wrapper = getParticipantWrapper(participant.sid);
 
             if (track.kind === 'video') {
-                let videoEl = wrapper.querySelector('video');
-                if (!videoEl) {
-                    videoEl = document.createElement('video');
-                    videoEl.autoplay = true;
-                    videoEl.playsInline = true;
-                    if (isLocal) videoEl.muted = true;
-                    wrapper.insertBefore(videoEl, wrapper.firstChild);
+                // Remove old video if any
+                const oldVideo = wrapper.querySelector('video');
+                if (oldVideo) {
+                    track.detach().forEach(el => el.remove());
+                    oldVideo.remove();
                 }
-                track.attach(videoEl);
-            } else if (track.kind === 'audio') {
-                let audioEl = wrapper.querySelector('audio');
-                if (!audioEl) {
-                    audioEl = document.createElement('audio');
-                    audioEl.autoplay = true;
-                    if (isLocal) audioEl.muted = true;
-                    wrapper.appendChild(audioEl);
+                const video = document.createElement('video');
+                video.autoplay = true;
+                video.playsInline = true;
+                video.muted = isLocal; // mute local video to avoid echo
+                track.attach(video);
+                wrapper.appendChild(video);
+            } 
+            else if (track.kind === 'audio') {
+                // Remove old audio if any
+                const oldAudio = wrapper.querySelector('audio');
+                if (oldAudio) {
+                    track.detach().forEach(el => el.remove());
+                    oldAudio.remove();
                 }
-                track.attach(audioEl);
+                const audio = document.createElement('audio');
+                audio.autoplay = true;
+                audio.controls = false;
+                audio.muted = isLocal; // mute local audio (optional)
+                track.attach(audio);
+                wrapper.appendChild(audio);
+            }
+
+            // Add or update participant name label (only once)
+            let nameLabel = wrapper.querySelector('.name-label');
+            if (!nameLabel) {
+                nameLabel = document.createElement('div');
+                nameLabel.className = 'name-label';
+                nameLabel.textContent = participant.name || participant.identity;
+                wrapper.appendChild(nameLabel);
+            }
+
+            // Add or update mute button (for audio control)
+            let muteBtn = wrapper.querySelector('.mute-button');
+            if (!muteBtn) {
+                muteBtn = document.createElement('button');
+                muteBtn.className = 'mute-button';
+                muteBtn.textContent = isLocal ? 'Mute Mic' : 'Mute Audio';
+                muteBtn.onclick = () => {
+                    if (isLocal) {
+                        // Toggle local audio track enabled state
+                        const audioPub = currentRoom.localParticipant.audioTracks.values().next().value;
+                        if (!audioPub) return;
+                        const track = audioPub.track;
+                        if (track.isEnabled) {
+                            track.setEnabled(false);
+                            muteBtn.textContent = 'Unmute Mic';
+                        } else {
+                            track.setEnabled(true);
+                            muteBtn.textContent = 'Mute Mic';
+                        }
+                    } else {
+                        // Toggle remote audio playback mute/unmute
+                        const audio = wrapper.querySelector('audio');
+                        if (!audio) return;
+                        audio.muted = !audio.muted;
+                        muteBtn.textContent = audio.muted ? 'Unmute Audio' : 'Mute Audio';
+                    }
+                };
+                wrapper.appendChild(muteBtn);
             }
         }
 
         function removeTrack(track, participant) {
-            const participantId = participant.sid || participant.identity;
-            const wrapper = document.getElementById(`wrapper-${participantId}`);
+            const wrapper = getParticipantWrapper(participant.sid);
             if (!wrapper) return;
 
-            const mediaEls = wrapper.querySelectorAll(track.kind);
-            mediaEls.forEach(el => {
-                track.detach(el);
-                el.remove();
-            });
-        }
+            if (track.kind === 'video') {
+                const video = wrapper.querySelector('video');
+                if (video) {
+                    track.detach().forEach(el => el.remove());
+                    video.remove();
+                }
+            } else if (track.kind === 'audio') {
+                const audio = wrapper.querySelector('audio');
+                if (audio) {
+                    track.detach().forEach(el => el.remove());
+                    audio.remove();
+                }
+            }
 
-        function removeParticipantTracks(participant) {
-            const participantId = participant.sid || participant.identity;
-            const wrapper = document.getElementById(`wrapper-${participantId}`);
-            if (wrapper) wrapper.remove();
-        }
-
-        function disconnectRoom() {
-            if (currentRoom) {
-                currentRoom.disconnect();
-                document.getElementById('videoContainer').innerHTML = '';
-                showMessage('roomMessage', 'Disconnected', 'info');
+            // If no more tracks remain in wrapper, remove entire participant container
+            const hasVideo = !!wrapper.querySelector('video');
+            const hasAudio = !!wrapper.querySelector('audio');
+            if (!hasVideo && !hasAudio) {
+                wrapper.remove();
             }
         }
 
-        function toggleMute() {
-            if (!currentRoom) return;
-            isMuted = !isMuted;
-            currentRoom.localParticipant.audioTracks.forEach(pub => {
-                pub.track.muted = isMuted;
-            });
-            document.getElementById('muteBtn').textContent = isMuted ? 'Unmute' : 'Mute';
+        function removeParticipantTracks(participant) {
+            const videoContainer = document.getElementById('videoContainer');
+            const wrapper = videoContainer.querySelector(`.participant-wrapper[data-participant-sid="${participant.sid}"]`);
+            if (wrapper) {
+                wrapper.remove();
+            }
+        }
+
+        function showLoginForm() {
+            document.querySelector('.login-form').classList.add('active');
+            document.querySelector('.room-interface').classList.remove('active');
+            document.getElementById('loginMessage').innerHTML = '';
+        }
+
+        function showRoomInterface() {
+            if (!currentUser) {
+                console.warn('Invalid currentUser object:', currentUser);
+                showLoginForm();
+                return;
+            }
+            document.querySelector('.login-form').classList.remove('active');
+            document.querySelector('.room-interface').classList.add('active');
+            document.getElementById('userName').textContent = currentUser.name;
+            document.getElementById('userPermissions').textContent = currentUser.permissions.join(', ');
         }
 
         function showMessage(containerId, message, type) {
             const container = document.getElementById(containerId);
             container.innerHTML = `<div class="${type}">${message}</div>`;
+
             if (type === 'success') {
-                setTimeout(() => { container.innerHTML = ''; }, 3000);
+                setTimeout(() => {
+                    container.innerHTML = '';
+                }, 3000);
             }
         }
     </script>
