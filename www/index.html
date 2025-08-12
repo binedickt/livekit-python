@@ -418,6 +418,14 @@
                 removeParticipantTracks(participant);
             });
 
+            // Listen for track publication events
+            currentRoom.on(window.LivekitClient.RoomEvent.TrackPublished, (publication, participant) => {
+                console.log(`Track published: ${publication.kind} from ${participant.identity}, SID: ${publication.trackSid}`);
+                if (!isLocalParticipant(participant)) {
+                    subscribeToParticipantTracks(participant, false);
+                }
+            });
+
             // Subscribe to any already-connected participants
             currentRoom.participants.forEach(p => {
                 console.log('Existing participant after connect:', p.identity, 'SID:', p.sid);
@@ -430,34 +438,47 @@
                 subscribeToParticipantTracks(p, false);
             });
 
-            // Re-check tracks after a short delay to handle timing issues
-            setTimeout(() => {
-                console.log('Re-checking existing participants after 1s...');
+            // Retry subscribing to tracks periodically if none are available
+            let retryCount = 0;
+            const maxRetries = 5;
+            const retryInterval = setInterval(() => {
+                if (retryCount >= maxRetries || !currentRoom) {
+                    clearInterval(retryInterval);
+                    return;
+                }
+                console.log(`Retrying track subscription (attempt ${retryCount + 1}/${maxRetries})...`);
                 currentRoom.participants.forEach(p => {
-                    console.log('Re-checking participant:', p.identity, 'SID:', p.sid);
-                    console.log('Participant trackPublications:', p.trackPublications ? Array.from(p.trackPublications.entries()).map(([sid, pub]) => ({
-                        sid,
-                        kind: pub.kind,
-                        isSubscribed: pub.isSubscribed,
-                        track: !!pub.track
-                    })) : 'No trackPublications available');
-                    subscribeToParticipantTracks(p, false);
+                    if (!p.trackPublications || p.trackPublications.size === 0) {
+                        console.log(`Retry: No trackPublications for ${p.identity}, SID: ${p.sid}`);
+                        subscribeToParticipantTracks(p, false);
+                    }
                 });
-            }, 1000);
+                retryCount++;
+            }, 2000);
 
             // Publish local tracks (audio + video)
-            const localTracks = await window.LivekitClient.createLocalTracks({
-                audio: true,
-                video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
-            });
+            try {
+                const localTracks = await window.LivekitClient.createLocalTracks({
+                    audio: true,
+                    video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
+                });
 
-            for (const track of localTracks) {
-                await currentRoom.localParticipant.publishTrack(track);
-                console.log('Published local track:', track.kind);
-                handleTrack(track, currentRoom.localParticipant, true);
+                for (const track of localTracks) {
+                    await currentRoom.localParticipant.publishTrack(track);
+                    console.log('Published local track:', track.kind);
+                    handleTrack(track, currentRoom.localParticipant, true);
+                }
+            } catch (error) {
+                console.error('Failed to publish local tracks:', error);
+                showMessage('roomMessage', 'Failed to access camera/microphone', 'error');
+                throw error;
             }
 
             showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
+        }
+
+        function isLocalParticipant(participant) {
+            return participant.sid === currentRoom.localParticipant.sid;
         }
 
         function subscribeToParticipantTracks(participant, isLocal) {
