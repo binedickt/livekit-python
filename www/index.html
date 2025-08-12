@@ -369,7 +369,16 @@
                     }
                 }
                 
-                // Handle remote participants
+                // Add already existing remote participants' video tracks
+                for (const participant of currentRoom.participants.values()) {
+                    for (const publication of participant.trackPublications.values()) {
+                        if (publication.track && publication.track.kind === 'video') {
+                            addVideoTrack(publication.track, participant.name || participant.identity);
+                        }
+                    }
+                }
+                
+                // Handle future remote participants' tracks
                 currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, 
                     (track, publication, participant) => {
                         if (track.kind === 'video') {
@@ -391,11 +400,9 @@
             } catch (error) {
                 console.error('Join room error:', error);
                 showMessage('roomMessage', error.message, 'error');
+                joinBtn.textContent = 'Join Room';
             } finally {
                 joinBtn.disabled = false;
-                if (joinBtn.textContent === 'Joining...') {
-                    joinBtn.textContent = 'Join Room';
-                }
             }
         }
         
