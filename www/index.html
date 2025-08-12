@@ -217,9 +217,14 @@
                 
                 if (response.ok) {
                     const data = await response.json();
-                    currentUser = data.user;
-                    showRoomInterface();
-                    await loadAvailableRooms();
+                    if (data.user) {
+                        currentUser = data.user;
+                        showRoomInterface();
+                        await loadAvailableRooms();
+                    } else {
+                        // No user info
+                        showLoginForm();
+                    }
                 } else {
                     showLoginForm();
                 }
@@ -228,6 +233,7 @@
                 showLoginForm();
             }
         }
+
         
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -359,6 +365,10 @@
                         return;
                     }
                     for (const participant of currentRoom.participants.values()) {
+                        if (!participant.trackPublications) {
+                            console.warn('Participant has no trackPublications:', participant);
+                            continue;
+                        }
                         for (const publication of participant.trackPublications.values()) {
                             if (publication.track && publication.track.kind === 'video') {
                                 addVideoTrack(publication.track, participant.name || participant.identity);
