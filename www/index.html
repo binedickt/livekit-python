@@ -400,11 +400,13 @@
 
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
                 console.log('Participant connected:', participant.identity);
-                participant.trackPublications.forEach(pub => {
-                    if (pub.isSubscribed && pub.track) {
+                if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
+                    participant.trackPublications.forEach(pub => {
+                        if (pub.isSubscribed && pub.track) {
                         handleTrack(pub.track, participant, false);
+                        }
+                    });
                     }
-                });
                 participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, track => {
                     handleTrack(track, participant, false);
                 });
@@ -421,11 +423,13 @@
             // Also handle already connected participants on join
             currentRoom.participants.forEach(participant => {
                 console.log('Existing participant:', participant.identity);
-                participant.trackPublications.forEach(pub => {
-                    if (pub.isSubscribed && pub.track) {
+                if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
+                    participant.trackPublications.forEach(pub => {
+                        if (pub.isSubscribed && pub.track) {
                         handleTrack(pub.track, participant, false);
+                        }
+                    });
                     }
-                });
                 participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, track => {
                     handleTrack(track, participant, false);
                 });
