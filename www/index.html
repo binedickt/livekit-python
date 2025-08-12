@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <title>LiveKit Video Room - Secure</title>
     <style>
         * {
@@ -160,13 +160,13 @@
                 <form id="loginForm">
                     <div class="form-group">
                         <label for="username">Username:</label>
-                        <input type="text" id="username" name="username" required>
+                        <input type="text" id="username" name="username" required />
                         <small>Try: admin, user1, or guest</small>
                     </div>
                     
                     <div class="form-group">
                         <label for="password">Password:</label>
-                        <input type="password" id="password" name="password" required>
+                        <input type="password" id="password" name="password" required />
                     </div>
                     
                     <button type="submit" id="loginBtn">Login</button>
@@ -312,7 +312,7 @@
                     });
                     
                     // Show create room button for users with permission
-                    if (currentUser.permissions.includes('create_room')) {
+                    if (currentUser && currentUser.permissions && currentUser.permissions.includes('create_room')) {
                         document.getElementById('createRoomBtn').style.display = 'block';
                     }
                 } else {
@@ -354,6 +354,10 @@
 
                 // Wait for full connection before accessing participants
                 currentRoom.once(window.LivekitClient.RoomEvent.Connected, () => {
+                    if (!currentRoom.participants) {
+                        console.warn('No participants available after room connected');
+                        return;
+                    }
                     for (const participant of currentRoom.participants.values()) {
                         for (const publication of participant.trackPublications.values()) {
                             if (publication.track && publication.track.kind === 'video') {
@@ -361,6 +365,16 @@
                             }
                         }
                     }
+                });
+
+                // Handle room disconnect and reconnect events
+                currentRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
+                    console.log('Disconnected from room');
+                    document.getElementById('videoContainer').innerHTML = '';
+                });
+
+                currentRoom.on(window.LivekitClient.RoomEvent.Reconnected, () => {
+                    console.log('Reconnected to room');
                 });
 
                 // Connect to room
@@ -459,6 +473,11 @@
         }
         
         function showRoomInterface() {
+            if (!currentUser || !currentUser.name || !currentUser.permissions) {
+                console.error('Invalid currentUser object:', currentUser);
+                showLoginForm();
+                return;
+            }
             document.querySelector('.login-form').classList.remove('active');
             document.querySelector('.room-interface').classList.add('active');
             document.getElementById('userName').textContent = currentUser.name;
