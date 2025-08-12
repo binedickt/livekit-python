@@ -399,42 +399,14 @@
                 console.log('Participant disconnected:', participant.identity);
                 const videoContainer = document.getElementById('videoContainer');
 
-                // Defensive: trackPublications may be a Map or undefined
-                const publications = participant.trackPublications;
-                if (publications) {
-                    // If it's a Map (usual in LiveKit SDK), iterate with for...of
-                    if (typeof publications[Symbol.iterator] === 'function') {
-                        for (const publication of publications) {
-                            if (publication.track) {
-                                const videoEl = videoContainer.querySelector(`video[data-track-id="${publication.track.sid}"]`);
-                                if (videoEl) {
-                                    videoEl.parentElement.remove();
-                                }
-                            }
-                        }
-                    } else if (typeof publications.forEach === 'function') {
-                        // Fallback if it's something else with forEach
-                        publications.forEach(publication => {
-                            if (publication.track) {
-                                const videoEl = videoContainer.querySelector(`video[data-track-id="${publication.track.sid}"]`);
-                                if (videoEl) {
-                                    videoEl.parentElement.remove();
-                                }
-                            }
-                        });
+                const videos = videoContainer.querySelectorAll(`video[data-participant-sid="${participant.sid}"]`);
+                videos.forEach(video => {
+                    // Detach tracks and remove video container
+                    video.srcObject = null;
+                    if (video.parentElement) {
+                        video.parentElement.remove();
                     }
-                } else {
-                    // Fallback: participant might have no trackPublications, remove all videos by participant identity
-                    // This requires you tagged video elements with participant identity or track sid.
-                    // Let's remove any video element with matching participantName label text:
-                    const videoContainers = videoContainer.querySelectorAll('div');
-                    videoContainers.forEach(wrapper => {
-                        const label = wrapper.querySelector('div');
-                        if (label && label.textContent === participant.identity) {
-                            wrapper.remove();
-                        }
-                    });
-                }
+                });
             });
 
             // Handle new track subscription on room (including existing participants)
@@ -447,11 +419,16 @@
             );
 
             // Remove video on track unsubscribed
-            currentRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed,
-                (track, publication, participant) => {
+            currentRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
+                const videoContainer = document.getElementById('videoContainer');
+                const videos = videoContainer.querySelectorAll(`video[data-track-id="${track.sid}"]`);
+                videos.forEach(video => {
                     track.detach().forEach(el => el.remove());
-                }
-            );
+                    if (video.parentElement) {
+                        video.parentElement.remove();
+                    }
+                });
+            });
 
             await currentRoom.connect(data.url, data.token);
 
@@ -501,12 +478,14 @@
             showMessage('roomMessage', 'Left the room', 'success');
         }
 
-        function addVideoTrack(track, participantName) {
+        function addVideoTrack(track, participantName, participantSid) {
             const videoContainer = document.getElementById('videoContainer');
 
-            // Avoid duplicates
-            const existing = videoContainer.querySelector(`video[data-track-id="${track.sid}"]`);
-            if (existing) return;
+            // Check for existing video with the same track sid and remove it to avoid duplicates
+            const existingVideo = videoContainer.querySelector(`video[data-track-id="${track.sid}"]`);
+            if (existingVideo) {
+                existingVideo.parentElement.remove();
+            }
 
             const videoWrapper = document.createElement('div');
             videoWrapper.style.position = 'relative';
@@ -517,6 +496,7 @@
             videoEl.playsInline = true;
             videoEl.muted = participantName === 'You';
             videoEl.setAttribute('data-track-id', track.sid);
+            videoEl.setAttribute('data-participant-sid', participantSid);
 
             const nameLabel = document.createElement('div');
             nameLabel.textContent = participantName;
