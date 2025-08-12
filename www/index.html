@@ -398,76 +398,42 @@
 
             currentRoom = new window.LivekitClient.Room();
 
-            // New participant joins
+            // Handle new participants dynamically
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
                 console.log('Participant connected:', participant.identity);
-
-                if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
-                    participant.trackPublications.forEach(pub => {
-                        if (pub.isSubscribed && pub.track) {
-                            handleTrack(pub.track, participant, false);
-                        }
-                    });
-                }
-
-                participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, track => {
-                    handleTrack(track, participant, false);
-                });
-
-                participant.on(window.LivekitClient.ParticipantEvent.TrackUnsubscribed, track => {
-                    removeTrack(track, participant);
-                });
+                subscribeToParticipantTracks(participant, false);
             });
 
-            // Participant disconnects
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
                 console.log('Participant disconnected:', participant.identity);
                 removeParticipantTracks(participant);
             });
 
-            // Already connected participants (when joining)
-            if (currentRoom.participants) {
-                currentRoom.participants.forEach(participant => {
-                    console.log('Existing participant:', participant.identity);
-
-                    if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
-                        participant.trackPublications.forEach(pub => {
-                            if (pub.isSubscribed && pub.track) {
-                                handleTrack(pub.track, participant, false);
-                            }
-                        });
-                    }
-
-                    participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, track => {
-                        handleTrack(track, participant, false);
-                    });
-
-                    participant.on(window.LivekitClient.ParticipantEvent.TrackUnsubscribed, track => {
-                        removeTrack(track, participant);
-                    });
-                });
-            }
-
             await currentRoom.connect(data.url, data.token);
 
-            // Create local audio + video tracks
+            // Handle participants already in the room after connecting
+            currentRoom.participants.forEach(participant => {
+                console.log('Existing participant:', participant.identity);
+                subscribeToParticipantTracks(participant, false);
+            });
+
+            // Publish local audio + video tracks
             const localTracks = await window.LivekitClient.createLocalTracks({
                 audio: true,
                 video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
             });
 
-            // Publish each track
             for (const track of localTracks) {
                 await currentRoom.localParticipant.publishTrack(track);
                 handleTrack(track, currentRoom.localParticipant, true);
             }
 
-            // Add mute/unmute button for local mic
+            // Add mute/unmute button
             const muteBtn = document.createElement('button');
             muteBtn.textContent = 'Mute Mic';
             muteBtn.style.margin = '10px';
             muteBtn.onclick = () => {
-                const audioPub = currentRoom.localParticipant.getTrackPublications().find(pub => pub.track.kind === 'audio');
+                const audioPub = currentRoom.localParticipant.getTrackPublications().find(pub => pub.track && pub.track.kind === 'audio');
                 if (audioPub) {
                     if (audioPub.track.isMuted) {
                         audioPub.track.unmute();
@@ -482,6 +448,26 @@
 
             showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
         }
+
+        // Helper: subscribe to existing or new participant's tracks
+        function subscribeToParticipantTracks(participant, isLocal) {
+            if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
+                participant.trackPublications.forEach(pub => {
+                    if (pub.isSubscribed && pub.track) {
+                        handleTrack(pub.track, participant, isLocal);
+                    }
+                });
+            }
+
+            participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, track => {
+                handleTrack(track, participant, isLocal);
+            });
+
+            participant.on(window.LivekitClient.ParticipantEvent.TrackUnsubscribed, track => {
+                removeTrack(track, participant);
+            });
+        }
+
 
         function leaveRoom() {
             if (currentRoom) {
