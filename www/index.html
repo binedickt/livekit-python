@@ -9,7 +9,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -18,7 +18,7 @@
             align-items: center;
             justify-content: center;
         }
-
+        
         .container {
             background: white;
             border-radius: 12px;
@@ -27,37 +27,37 @@
             width: 90%;
             max-width: 500px;
         }
-
+        
         .header {
             background: #333;
             color: white;
             padding: 2rem;
             text-align: center;
         }
-
+        
         .content {
             padding: 2rem;
         }
-
+        
         .login-form, .room-interface {
             display: none;
         }
-
+        
         .login-form.active, .room-interface.active {
             display: block;
         }
-
+        
         .form-group {
             margin-bottom: 1.5rem;
         }
-
+        
         label {
             display: block;
             margin-bottom: 0.5rem;
             font-weight: 500;
             color: #333;
         }
-
+        
         input, select, button {
             width: 100%;
             padding: 0.75rem;
@@ -66,12 +66,12 @@
             font-size: 1rem;
             transition: border-color 0.2s;
         }
-
+        
         input:focus, select:focus {
             outline: none;
             border-color: #667eea;
         }
-
+        
         button {
             background: #667eea;
             color: white;
@@ -80,16 +80,16 @@
             font-weight: 500;
             transition: background 0.2s;
         }
-
+        
         button:hover {
             background: #5a6fd8;
         }
-
+        
         button:disabled {
             background: #ccc;
             cursor: not-allowed;
         }
-
+        
         .user-info {
             background: #f8f9fa;
             padding: 1rem;
@@ -97,12 +97,12 @@
             margin-bottom: 1.5rem;
             border-left: 4px solid #667eea;
         }
-
+        
         .user-info h3 {
             margin-bottom: 0.5rem;
             color: #333;
         }
-
+        
         .error {
             background: #fee;
             color: #c33;
@@ -111,7 +111,7 @@
             margin-bottom: 1rem;
             border-left: 4px solid #c33;
         }
-
+        
         .success {
             background: #efe;
             color: #363;
@@ -120,19 +120,53 @@
             margin-bottom: 1rem;
             border-left: 4px solid #363;
         }
-
+        
         .video-container {
             display: flex;
             flex-wrap: wrap;
             gap: 1rem;
             margin-top: 1.5rem;
         }
-
-        video {
+        
+        .video-wrapper {
+            position: relative;
+            display: inline-block;
             width: 200px;
             height: 150px;
             background: #000;
             border-radius: 6px;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .name-label {
+            position: absolute;
+            bottom: 25px;
+            left: 5px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+
+        .mute-button {
+            position: absolute;
+            bottom: 5px;
+            left: 5px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 6px;
+            font-size: 12px;
+            cursor: pointer;
+            user-select: none;
         }
 
         .room-controls {
@@ -140,7 +174,7 @@
             gap: 1rem;
             margin-top: 1rem;
         }
-
+        
         .room-controls button {
             flex: 1;
         }
@@ -152,7 +186,7 @@
             <h1>🎥 Secure Video Rooms</h1>
             <p>LiveKit with Authentication</p>
         </div>
-
+        
         <div class="content">
             <!-- Login Form -->
             <div class="login-form active">
@@ -163,16 +197,16 @@
                         <input type="text" id="username" name="username" required />
                         <small>Try: admin, user1, or guest</small>
                     </div>
-
+                    
                     <div class="form-group">
                         <label for="password">Password:</label>
                         <input type="password" id="password" name="password" required />
                     </div>
-
+                    
                     <button type="submit" id="loginBtn">Login</button>
                 </form>
             </div>
-
+            
             <!-- Room Interface -->
             <div class="room-interface">
                 <div class="user-info">
@@ -180,21 +214,21 @@
                     <p>Permissions: <span id="userPermissions"></span></p>
                     <button onclick="logout()" style="width: auto; padding: 0.5rem 1rem; margin-top: 0.5rem;">Logout</button>
                 </div>
-
+                
                 <div id="roomMessage"></div>
-
+                
                 <div class="form-group">
                     <label for="roomSelect">Select Room:</label>
                     <select id="roomSelect">
                         <option value="">Loading rooms...</option>
                     </select>
                 </div>
-
+                
                 <div class="room-controls">
                     <button id="joinBtn">Join Room</button>
                     <button id="createRoomBtn" style="display: none;">Create Room</button>
                 </div>
-
+                
                 <div class="video-container" id="videoContainer"></div>
             </div>
         </div>
@@ -205,7 +239,6 @@
     <script>
         let currentUser = null;
         let currentRoom = null;
-        let joined = false;  // track join state
 
         // Check if user is already logged in
         checkAuthStatus();
@@ -215,16 +248,12 @@
                 const response = await fetch('/me', {
                     credentials: 'include'
                 });
-
+                
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.user) {
-                        currentUser = data.user;
-                        showRoomInterface();
-                        await loadAvailableRooms();
-                    } else {
-                        showLoginForm();
-                    }
+                    currentUser = data.user;
+                    showRoomInterface();
+                    await loadAvailableRooms();
                 } else {
                     showLoginForm();
                 }
@@ -233,20 +262,20 @@
                 showLoginForm();
             }
         }
-
+        
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             await login();
         });
-
+        
         async function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const loginBtn = document.getElementById('loginBtn');
-
+            
             loginBtn.disabled = true;
             loginBtn.textContent = 'Logging in...';
-
+            
             try {
                 const response = await fetch('/login', {
                     method: 'POST',
@@ -256,9 +285,9 @@
                     credentials: 'include',
                     body: JSON.stringify({ username, password })
                 });
-
+                
                 const data = await response.json();
-
+                
                 if (response.ok) {
                     currentUser = data.user;
                     showMessage('loginMessage', 'Login successful!', 'success');
@@ -277,7 +306,7 @@
                 loginBtn.textContent = 'Login';
             }
         }
-
+        
         async function logout() {
             try {
                 await fetch('/logout', {
@@ -287,28 +316,26 @@
             } catch (error) {
                 console.error('Logout error:', error);
             }
-
+            
             currentUser = null;
             if (currentRoom) {
                 currentRoom.disconnect();
                 currentRoom = null;
             }
-            joined = false;
-            updateJoinButtonState();
-
+            
             document.getElementById('videoContainer').innerHTML = '';
             showLoginForm();
         }
-
+        
         async function loadAvailableRooms() {
             try {
                 const response = await fetch('/rooms', {
                     credentials: 'include'
                 });
-
+                
                 const data = await response.json();
                 const roomSelect = document.getElementById('roomSelect');
-
+                
                 if (response.ok) {
                     roomSelect.innerHTML = '<option value="">Select a room...</option>';
                     data.rooms.forEach(room => {
@@ -317,7 +344,7 @@
                         option.textContent = room.display_name;
                         roomSelect.appendChild(option);
                     });
-
+                    
                     // Show create room button for users with permission
                     if (currentUser.permissions.includes('create_room')) {
                         document.getElementById('createRoomBtn').style.display = 'block';
@@ -330,190 +357,184 @@
                 showMessage('roomMessage', 'Failed to load rooms', 'error');
             }
         }
-
-        // Join button event listener with state toggle
-        const joinBtn = document.getElementById('joinBtn');
-        joinBtn.addEventListener('click', async () => {
-            joinBtn.disabled = true;
-
-            if (!joined) {
-                try {
-                    await joinRoom();
-                    joined = true;
-                } catch (e) {
-                    console.error('Error joining room:', e);
-                    showMessage('roomMessage', e.message || 'Error joining room', 'error');
-                }
-            } else {
-                leaveRoom();
-                joined = false;
-            }
-
-            updateJoinButtonState();
-            joinBtn.disabled = false;
-        });
-
-        function updateJoinButtonState() {
-            if (joined) {
-                joinBtn.textContent = 'Leave Room';
-            } else {
-                joinBtn.textContent = 'Join Room';
-            }
-        }
-
+        
+        document.getElementById('joinBtn').addEventListener('click', joinRoom);
+        
         async function joinRoom() {
             const roomName = document.getElementById('roomSelect').value;
             if (!roomName) {
-                throw new Error('Please select a room');
+                showMessage('roomMessage', 'Please select a room', 'error');
+                return;
             }
-
-            // Clear any previous video elements
-            document.getElementById('videoContainer').innerHTML = '';
-
-            // Get token for the room
-            const response = await fetch(`/token?room=${encodeURIComponent(roomName)}`, {
-                credentials: 'include'
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to get access token');
-            }
-
-            currentRoom = new window.LivekitClient.Room();
-
-            // Participant connected event — subscribe to tracks
-            currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
-                console.log('Participant connected:', participant.identity);
-
-                participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, (track) => {
-                    if (track.kind === 'video') {
-                        addVideoTrack(track, participant.name || participant.identity);
-                    }
+            
+            const joinBtn = document.getElementById('joinBtn');
+            joinBtn.disabled = true;
+            joinBtn.textContent = 'Joining...';
+            
+            try {
+                // Get token for the room
+                const response = await fetch(`/token?room=${encodeURIComponent(roomName)}`, {
+                    credentials: 'include'
                 });
-            });
-
-            // Participant disconnected event — remove their video elements
-            currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
-                console.log('Participant disconnected:', participant.identity);
-                const videoContainer = document.getElementById('videoContainer');
-
-                const videos = videoContainer.querySelectorAll(`video[data-participant-sid="${participant.sid}"]`);
-                videos.forEach(video => {
-                    // Detach tracks and remove video container
-                    video.srcObject = null;
-                    if (video.parentElement) {
-                        video.parentElement.remove();
-                    }
-                });
-            });
-
-            // Handle new track subscription on room (including existing participants)
-            currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed,
-                (track, publication, participant) => {
-                    if (track.kind === 'video') {
-                        addVideoTrack(track, participant.name || participant.identity);
-                    }
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to get access token');
                 }
-            );
+                
+                // Disconnect if already connected
+                if (currentRoom) {
+                    currentRoom.disconnect();
+                    currentRoom = null;
+                }
 
-            // Remove video on track unsubscribed
-            currentRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, (track, publication, participant) => {
-                const videoContainer = document.getElementById('videoContainer');
-                const videos = videoContainer.querySelectorAll(`video[data-track-id="${track.sid}"]`);
-                videos.forEach(video => {
-                    track.detach().forEach(el => el.remove());
-                    if (video.parentElement) {
-                        video.parentElement.remove();
+                // Connect to LiveKit room
+                currentRoom = new window.LivekitClient.Room();
+                await currentRoom.connect(data.url, data.token);
+
+                // Clear any existing videos
+                document.getElementById('videoContainer').innerHTML = '';
+
+                // Create local tracks with audio + video enabled
+                const tracks = await window.LivekitClient.createLocalTracks({
+                    audio: true,
+                    video: {
+                        resolution: { width: 640, height: 480 },
+                        frameRate: 15,
                     }
                 });
-            });
-
-            await currentRoom.connect(data.url, data.token);
-
-            // Publish local tracks (audio + video)
-            const tracks = await window.LivekitClient.createLocalTracks({
-                audio: true,
-                video: {
-                    resolution: { width: 640, height: 480 },
-                    frameRate: 15,
+                
+                for (const track of tracks) {
+                    await currentRoom.localParticipant.publishTrack(track);
+                    // Show video or audio (audio will be attached to a video element too)
+                    addTrackElement(track, currentRoom.localParticipant.name || 'You', currentRoom.localParticipant.sid);
                 }
-            });
 
-            for (const track of tracks) {
-                await currentRoom.localParticipant.publishTrack(track);
-                if (track.kind === 'video') {
-                    addVideoTrack(track, 'You');
+                // Handle remote participant track subscribed
+                currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed,
+                    (track, publication, participant) => {
+                        addTrackElement(track, participant.name || participant.identity, participant.sid);
+                    }
+                );
+
+                // Handle track unsubscribed - remove video/audio elements
+                currentRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed,
+                    (track, publication, participant) => {
+                        removeTrackElement(track);
+                    }
+                );
+
+                // Remove video/audio elements when participant disconnects
+                currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected,
+                    participant => {
+                        removeParticipantTracks(participant.sid);
+                    }
+                );
+
+                showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
+                joinBtn.textContent = 'Leave Room';
+                joinBtn.onclick = leaveRoom;
+            } catch (error) {
+                console.error('Join room error:', error);
+                showMessage('roomMessage', error.message, 'error');
+            } finally {
+                joinBtn.disabled = false;
+                if (joinBtn.textContent === 'Joining...') {
+                    joinBtn.textContent = 'Join Room';
                 }
             }
-
-            // Attach video tracks of existing participants
-            currentRoom.participants.forEach(participant => {
-                if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
-                    participant.trackPublications.forEach(publication => {
-                        if (publication.track && publication.track.kind === 'video') {
-                            addVideoTrack(publication.track, participant.name || participant.identity);
-                        }
-                    });
-                }
-
-                participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, (track) => {
-                    if (track.kind === 'video') {
-                        addVideoTrack(track, participant.name || participant.identity);
-                    }
-                });
-            });
-
-            showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
         }
-
+        
         function leaveRoom() {
             if (currentRoom) {
                 currentRoom.disconnect();
                 currentRoom = null;
             }
-
+            
             document.getElementById('videoContainer').innerHTML = '';
+            const joinBtn = document.getElementById('joinBtn');
+            joinBtn.textContent = 'Join Room';
+            joinBtn.onclick = joinRoom;
             showMessage('roomMessage', 'Left the room', 'success');
         }
-
-        function addVideoTrack(track, participantName, participantSid) {
+        
+        function addTrackElement(track, participantName, participantSid) {
             const videoContainer = document.getElementById('videoContainer');
 
-            // Check for existing video with the same track sid and remove it to avoid duplicates
-            const existingVideo = videoContainer.querySelector(`video[data-track-id="${track.sid}"]`);
-            if (existingVideo) {
-                existingVideo.parentElement.remove();
+            // Remove existing video/audio element for the same track if any
+            const existingEl = videoContainer.querySelector(`[data-track-id="${track.sid}"]`);
+            if (existingEl) {
+                existingEl.parentElement.remove();
             }
 
-            const videoWrapper = document.createElement('div');
-            videoWrapper.style.position = 'relative';
-            videoWrapper.style.display = 'inline-block';
+            // Create container wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'video-wrapper';
 
-            const videoEl = document.createElement('video');
-            videoEl.autoplay = true;
-            videoEl.playsInline = true;
-            videoEl.muted = participantName === 'You';
-            videoEl.setAttribute('data-track-id', track.sid);
-            videoEl.setAttribute('data-participant-sid', participantSid);
-
+            // Create label for participant name
             const nameLabel = document.createElement('div');
+            nameLabel.className = 'name-label';
             nameLabel.textContent = participantName;
-            nameLabel.style.position = 'absolute';
-            nameLabel.style.bottom = '5px';
-            nameLabel.style.left = '5px';
-            nameLabel.style.background = 'rgba(0,0,0,0.7)';
-            nameLabel.style.color = 'white';
-            nameLabel.style.padding = '2px 6px';
-            nameLabel.style.borderRadius = '3px';
-            nameLabel.style.fontSize = '12px';
 
-            track.attach(videoEl);
+            // Create mute button only for audio tracks
+            let muteButton = null;
+            if (track.kind === 'audio') {
+                muteButton = document.createElement('button');
+                muteButton.className = 'mute-button';
+                muteButton.textContent = 'Mute';
+                muteButton.title = 'Mute/unmute audio';
 
-            videoWrapper.appendChild(videoEl);
-            videoWrapper.appendChild(nameLabel);
-            videoContainer.appendChild(videoWrapper);
+                muteButton.onclick = () => {
+                    track.enabled = !track.enabled;
+                    muteButton.textContent = track.enabled ? 'Mute' : 'Unmute';
+                };
+            }
+
+            if (track.kind === 'video' || track.kind === 'audio') {
+                const mediaEl = document.createElement(track.kind === 'video' ? 'video' : 'audio');
+                mediaEl.autoplay = true;
+                mediaEl.playsInline = true;
+                if (track.kind === 'video') {
+                    mediaEl.muted = participantName === 'You'; // mute own video audio
+                } else {
+                    // For audio, always unmuted by default
+                    mediaEl.muted = false;
+                    mediaEl.controls = false;
+                }
+
+                mediaEl.setAttribute('data-track-id', track.sid);
+                mediaEl.setAttribute('data-participant-sid', participantSid);
+
+                track.attach(mediaEl);
+                wrapper.appendChild(mediaEl);
+            }
+
+            wrapper.appendChild(nameLabel);
+            if (muteButton) wrapper.appendChild(muteButton);
+
+            videoContainer.appendChild(wrapper);
+        }
+
+        function removeTrackElement(track) {
+            const videoContainer = document.getElementById('videoContainer');
+            const el = videoContainer.querySelector(`[data-track-id="${track.sid}"]`);
+            if (el) {
+                track.detach().forEach(element => element.remove());
+                if (el.parentElement) el.parentElement.remove();
+            }
+        }
+
+        function removeParticipantTracks(participantSid) {
+            const videoContainer = document.getElementById('videoContainer');
+            const elements = videoContainer.querySelectorAll(`[data-participant-sid="${participantSid}"]`);
+            elements.forEach(el => {
+                // Detach tracks if possible
+                if (el.tagName === 'VIDEO' || el.tagName === 'AUDIO') {
+                    el.srcObject = null;
+                }
+                if (el.parentElement) el.parentElement.remove();
+            });
         }
 
         function showLoginForm() {
