@@ -398,14 +398,43 @@
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
                 console.log('Participant disconnected:', participant.identity);
                 const videoContainer = document.getElementById('videoContainer');
-                participant.trackPublications.forEach(publication => {
-                    if (publication.track) {
-                        const videoEl = videoContainer.querySelector(`video[data-track-id="${publication.track.sid}"]`);
-                        if (videoEl) {
-                            videoEl.parentElement.remove();
+
+                // Defensive: trackPublications may be a Map or undefined
+                const publications = participant.trackPublications;
+                if (publications) {
+                    // If it's a Map (usual in LiveKit SDK), iterate with for...of
+                    if (typeof publications[Symbol.iterator] === 'function') {
+                        for (const publication of publications) {
+                            if (publication.track) {
+                                const videoEl = videoContainer.querySelector(`video[data-track-id="${publication.track.sid}"]`);
+                                if (videoEl) {
+                                    videoEl.parentElement.remove();
+                                }
+                            }
                         }
+                    } else if (typeof publications.forEach === 'function') {
+                        // Fallback if it's something else with forEach
+                        publications.forEach(publication => {
+                            if (publication.track) {
+                                const videoEl = videoContainer.querySelector(`video[data-track-id="${publication.track.sid}"]`);
+                                if (videoEl) {
+                                    videoEl.parentElement.remove();
+                                }
+                            }
+                        });
                     }
-                });
+                } else {
+                    // Fallback: participant might have no trackPublications, remove all videos by participant identity
+                    // This requires you tagged video elements with participant identity or track sid.
+                    // Let's remove any video element with matching participantName label text:
+                    const videoContainers = videoContainer.querySelectorAll('div');
+                    videoContainers.forEach(wrapper => {
+                        const label = wrapper.querySelector('div');
+                        if (label && label.textContent === participant.identity) {
+                            wrapper.remove();
+                        }
+                    });
+                }
             });
 
             // Handle new track subscription on room (including existing participants)
