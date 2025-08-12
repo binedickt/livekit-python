@@ -451,20 +451,20 @@
 
         // Helper: subscribe to existing or new participant's tracks
         function subscribeToParticipantTracks(participant, isLocal) {
-            if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
-                participant.trackPublications.forEach(pub => {
-                    if (pub.isSubscribed && pub.track) {
-                        handleTrack(pub.track, participant, isLocal);
-                    }
-                });
-            }
-
+            // Always listen for future subscriptions
             participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, track => {
                 handleTrack(track, participant, isLocal);
             });
 
             participant.on(window.LivekitClient.ParticipantEvent.TrackUnsubscribed, track => {
                 removeTrack(track, participant);
+            });
+
+            // Handle any already-subscribed tracks
+            participant.trackPublications?.forEach(pub => {
+                if (pub.track) {
+                    handleTrack(pub.track, participant, isLocal);
+                }
             });
         }
 
