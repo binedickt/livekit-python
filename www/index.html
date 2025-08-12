@@ -46,18 +46,18 @@
         .login-form.active, .room-interface.active {
             display: block;
         }
-        
+
         .form-group {
             margin-bottom: 1.5rem;
         }
-        
+
         label {
             display: block;
             margin-bottom: 0.5rem;
             font-weight: 500;
             color: #333;
         }
-        
+
         input, select, button {
             width: 100%;
             padding: 0.75rem;
@@ -66,12 +66,12 @@
             font-size: 1rem;
             transition: border-color 0.2s;
         }
-        
+
         input:focus, select:focus {
             outline: none;
             border-color: #667eea;
         }
-        
+
         button {
             background: #667eea;
             color: white;
@@ -80,16 +80,16 @@
             font-weight: 500;
             transition: background 0.2s;
         }
-        
+
         button:hover {
             background: #5a6fd8;
         }
-        
+
         button:disabled {
             background: #ccc;
             cursor: not-allowed;
         }
-        
+
         .user-info {
             background: #f8f9fa;
             padding: 1rem;
@@ -97,12 +97,12 @@
             margin-bottom: 1.5rem;
             border-left: 4px solid #667eea;
         }
-        
+
         .user-info h3 {
             margin-bottom: 0.5rem;
             color: #333;
         }
-        
+
         .error {
             background: #fee;
             color: #c33;
@@ -111,7 +111,7 @@
             margin-bottom: 1rem;
             border-left: 4px solid #c33;
         }
-        
+
         .success {
             background: #efe;
             color: #363;
@@ -120,27 +120,27 @@
             margin-bottom: 1rem;
             border-left: 4px solid #363;
         }
-        
+
         .video-container {
             display: flex;
             flex-wrap: wrap;
             gap: 1rem;
             margin-top: 1.5rem;
         }
-        
+
         video {
             width: 200px;
             height: 150px;
             background: #000;
             border-radius: 6px;
         }
-        
+
         .room-controls {
             display: flex;
             gap: 1rem;
             margin-top: 1rem;
         }
-        
+
         .room-controls button {
             flex: 1;
         }
@@ -152,7 +152,7 @@
             <h1>🎥 Secure Video Rooms</h1>
             <p>LiveKit with Authentication</p>
         </div>
-        
+
         <div class="content">
             <!-- Login Form -->
             <div class="login-form active">
@@ -163,16 +163,16 @@
                         <input type="text" id="username" name="username" required />
                         <small>Try: admin, user1, or guest</small>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="password">Password:</label>
                         <input type="password" id="password" name="password" required />
                     </div>
-                    
+
                     <button type="submit" id="loginBtn">Login</button>
                 </form>
             </div>
-            
+
             <!-- Room Interface -->
             <div class="room-interface">
                 <div class="user-info">
@@ -180,21 +180,21 @@
                     <p>Permissions: <span id="userPermissions"></span></p>
                     <button onclick="logout()" style="width: auto; padding: 0.5rem 1rem; margin-top: 0.5rem;">Logout</button>
                 </div>
-                
+
                 <div id="roomMessage"></div>
-                
+
                 <div class="form-group">
                     <label for="roomSelect">Select Room:</label>
                     <select id="roomSelect">
                         <option value="">Loading rooms...</option>
                     </select>
                 </div>
-                
+
                 <div class="room-controls">
                     <button id="joinBtn">Join Room</button>
                     <button id="createRoomBtn" style="display: none;">Create Room</button>
                 </div>
-                
+
                 <div class="video-container" id="videoContainer"></div>
             </div>
         </div>
@@ -205,16 +205,16 @@
     <script>
         let currentUser = null;
         let currentRoom = null;
-        
+
         // Check if user is already logged in
         checkAuthStatus();
-        
+
         async function checkAuthStatus() {
             try {
                 const response = await fetch('/me', {
                     credentials: 'include'
                 });
-                
+
                 if (response.ok) {
                     const data = await response.json();
                     if (data.user) {
@@ -222,7 +222,6 @@
                         showRoomInterface();
                         await loadAvailableRooms();
                     } else {
-                        // No user info
                         showLoginForm();
                     }
                 } else {
@@ -234,20 +233,19 @@
             }
         }
 
-        
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             await login();
         });
-        
+
         async function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             const loginBtn = document.getElementById('loginBtn');
-            
+
             loginBtn.disabled = true;
             loginBtn.textContent = 'Logging in...';
-            
+
             try {
                 const response = await fetch('/login', {
                     method: 'POST',
@@ -257,9 +255,9 @@
                     credentials: 'include',
                     body: JSON.stringify({ username, password })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (response.ok) {
                     currentUser = data.user;
                     showMessage('loginMessage', 'Login successful!', 'success');
@@ -278,7 +276,7 @@
                 loginBtn.textContent = 'Login';
             }
         }
-        
+
         async function logout() {
             try {
                 await fetch('/logout', {
@@ -288,26 +286,26 @@
             } catch (error) {
                 console.error('Logout error:', error);
             }
-            
+
             currentUser = null;
             if (currentRoom) {
                 currentRoom.disconnect();
                 currentRoom = null;
             }
-            
+
             document.getElementById('videoContainer').innerHTML = '';
             showLoginForm();
         }
-        
+
         async function loadAvailableRooms() {
             try {
                 const response = await fetch('/rooms', {
                     credentials: 'include'
                 });
-                
+
                 const data = await response.json();
                 const roomSelect = document.getElementById('roomSelect');
-                
+
                 if (response.ok) {
                     roomSelect.innerHTML = '<option value="">Select a room...</option>';
                     data.rooms.forEach(room => {
@@ -316,9 +314,9 @@
                         option.textContent = room.display_name;
                         roomSelect.appendChild(option);
                     });
-                    
+
                     // Show create room button for users with permission
-                    if (currentUser && currentUser.permissions && currentUser.permissions.includes('create_room')) {
+                    if (currentUser.permissions.includes('create_room')) {
                         document.getElementById('createRoomBtn').style.display = 'block';
                     }
                 } else {
@@ -329,74 +327,65 @@
                 showMessage('roomMessage', 'Failed to load rooms', 'error');
             }
         }
-        
+
         document.getElementById('joinBtn').addEventListener('click', joinRoom);
-        
+
         async function joinRoom() {
             const roomName = document.getElementById('roomSelect').value;
             if (!roomName) {
                 showMessage('roomMessage', 'Please select a room', 'error');
                 return;
             }
-            
+
             const joinBtn = document.getElementById('joinBtn');
             joinBtn.disabled = true;
             joinBtn.textContent = 'Joining...';
-            
+
             try {
                 // Get token for the room
                 const response = await fetch(`/token?room=${encodeURIComponent(roomName)}`, {
                     credentials: 'include'
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (!response.ok) {
                     throw new Error(data.error || 'Failed to get access token');
                 }
-                
-                // Create Room instance
+
+                // Connect to LiveKit room
                 currentRoom = new window.LivekitClient.Room();
 
-                // Wait for full connection before accessing participants
-                currentRoom.once(window.LivekitClient.RoomEvent.Connected, () => {
-                    if (!currentRoom.participants) {
-                        console.warn('No participants available after room connected');
-                        return;
-                    }
-                    for (const participant of currentRoom.participants.values()) {
-                        if (!participant.trackPublications) {
-                            console.warn('Participant has no trackPublications:', participant);
-                            continue;
+                // Listen for participants joining after you
+                currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
+                    console.log('Participant connected:', participant.identity);
+
+                    participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, (track) => {
+                        if (track.kind === 'video') {
+                            addVideoTrack(track, participant.name || participant.identity);
                         }
-                        for (const publication of participant.trackPublications.values()) {
-                            // Only subscribe if the track is already published
-                            if (publication.track && publication.track.kind === 'video') {
-                                addVideoTrack(publication.track, participant.name || participant.identity);
-                            } else if (!publication.track) {
-                                // If track not yet subscribed, try subscribing explicitly
-                                participant.subscribe(publication).catch(e => {
-                                    console.warn('Failed to subscribe to track', e);
-                                });
-                            }
+                    });
+                });
+
+                // Listen for track subscriptions for remote participants
+                currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed,
+                    (track, publication, participant) => {
+                        if (track.kind === 'video') {
+                            addVideoTrack(track, participant.name || participant.identity);
                         }
                     }
-                });
+                );
 
-                // Handle room disconnect and reconnect events
-                currentRoom.on(window.LivekitClient.RoomEvent.Disconnected, () => {
-                    console.log('Disconnected from room');
-                    document.getElementById('videoContainer').innerHTML = '';
-                });
+                // Listen for track unsubscriptions (remove video element)
+                currentRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed,
+                    (track, publication, participant) => {
+                        track.detach().forEach(el => el.remove());
+                    }
+                );
 
-                currentRoom.on(window.LivekitClient.RoomEvent.Reconnected, () => {
-                    console.log('Reconnected to room');
-                });
-
-                // Connect to room
                 await currentRoom.connect(data.url, data.token);
-                
-                // Get and publish local tracks
+
+                // Publish local tracks (mic + camera)
                 const tracks = await window.LivekitClient.createLocalTracks({
                     audio: true,
                     video: {
@@ -404,66 +393,75 @@
                         frameRate: 15,
                     }
                 });
-                
+
                 for (const track of tracks) {
                     await currentRoom.localParticipant.publishTrack(track);
                     if (track.kind === 'video') {
                         addVideoTrack(track, 'You');
                     }
                 }
-                
-                // Handle future remote participants' tracks
-                currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, 
-                    (track, publication, participant) => {
+
+                // After connection, attach already subscribed video tracks from existing participants
+                currentRoom.participants.forEach(participant => {
+                    participant.trackPublications.forEach(publication => {
+                        if (publication.track && publication.track.kind === 'video') {
+                            addVideoTrack(publication.track, participant.name || participant.identity);
+                        }
+                    });
+
+                    // Listen for new tracks published by this participant after you joined
+                    participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, (track) => {
                         if (track.kind === 'video') {
                             addVideoTrack(track, participant.name || participant.identity);
                         }
-                    }
-                );
-                
-                currentRoom.on(window.LivekitClient.RoomEvent.TrackUnsubscribed, 
-                    (track, publication, participant) => {
-                        track.detach().forEach(el => el.remove());
-                    }
-                );
-                
+                    });
+                });
+
                 showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
                 joinBtn.textContent = 'Leave Room';
                 joinBtn.onclick = leaveRoom;
-                
+
             } catch (error) {
                 console.error('Join room error:', error);
                 showMessage('roomMessage', error.message, 'error');
-                joinBtn.textContent = 'Join Room';
             } finally {
                 joinBtn.disabled = false;
+                if (joinBtn.textContent === 'Joining...') {
+                    joinBtn.textContent = 'Join Room';
+                }
             }
         }
-        
+
         function leaveRoom() {
             if (currentRoom) {
                 currentRoom.disconnect();
                 currentRoom = null;
             }
-            
+
             document.getElementById('videoContainer').innerHTML = '';
             const joinBtn = document.getElementById('joinBtn');
             joinBtn.textContent = 'Join Room';
             joinBtn.onclick = joinRoom;
             showMessage('roomMessage', 'Left the room', 'success');
         }
-        
+
         function addVideoTrack(track, participantName) {
             const videoContainer = document.getElementById('videoContainer');
+
+            // Avoid adding duplicates
+            const existing = videoContainer.querySelector(`video[data-track-id="${track.sid}"]`);
+            if (existing) return;
+
             const videoWrapper = document.createElement('div');
             videoWrapper.style.position = 'relative';
             videoWrapper.style.display = 'inline-block';
-            
+
             const videoEl = document.createElement('video');
             videoEl.autoplay = true;
             videoEl.playsInline = true;
             videoEl.muted = participantName === 'You';
-            
+            videoEl.setAttribute('data-track-id', track.sid);
+
             const nameLabel = document.createElement('div');
             nameLabel.textContent = participantName;
             nameLabel.style.position = 'absolute';
@@ -474,22 +472,22 @@
             nameLabel.style.padding = '2px 6px';
             nameLabel.style.borderRadius = '3px';
             nameLabel.style.fontSize = '12px';
-            
+
             track.attach(videoEl);
-            
+
             videoWrapper.appendChild(videoEl);
             videoWrapper.appendChild(nameLabel);
             videoContainer.appendChild(videoWrapper);
         }
-        
+
         function showLoginForm() {
             document.querySelector('.login-form').classList.add('active');
             document.querySelector('.room-interface').classList.remove('active');
             document.getElementById('loginMessage').innerHTML = '';
         }
-        
+
         function showRoomInterface() {
-            if (!currentUser || !currentUser.name || !currentUser.permissions) {
+            if (!currentUser) {
                 console.error('Invalid currentUser object:', currentUser);
                 showLoginForm();
                 return;
@@ -499,11 +497,11 @@
             document.getElementById('userName').textContent = currentUser.name;
             document.getElementById('userPermissions').textContent = currentUser.permissions.join(', ');
         }
-        
+
         function showMessage(containerId, message, type) {
             const container = document.getElementById(containerId);
             container.innerHTML = `<div class="${type}">${message}</div>`;
-            
+
             if (type === 'success') {
                 setTimeout(() => {
                     container.innerHTML = '';
