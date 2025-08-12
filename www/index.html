@@ -383,7 +383,7 @@
 
             currentRoom = new window.LivekitClient.Room();
 
-            // Handle participant connected event for future participants
+            // Participant connected event — subscribe to tracks
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
                 console.log('Participant connected:', participant.identity);
 
@@ -394,7 +394,21 @@
                 });
             });
 
-            // Handle new track subscription on room
+            // Participant disconnected event — remove their video elements
+            currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
+                console.log('Participant disconnected:', participant.identity);
+                const videoContainer = document.getElementById('videoContainer');
+                participant.trackPublications.forEach(publication => {
+                    if (publication.track) {
+                        const videoEl = videoContainer.querySelector(`video[data-track-id="${publication.track.sid}"]`);
+                        if (videoEl) {
+                            videoEl.parentElement.remove();
+                        }
+                    }
+                });
+            });
+
+            // Handle new track subscription on room (including existing participants)
             currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed,
                 (track, publication, participant) => {
                     if (track.kind === 'video') {
