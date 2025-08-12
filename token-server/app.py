@@ -66,7 +66,7 @@ class CreateRoomRequest(BaseModel):
 # In-memory user store (replace with database in production)
 USERS = {
     'admin': {
-        'password_hash': hashlib.sha256('admin123'.encode()).hexdigest(),
+        'password_hash': hashlib.sha256('admin123madin'.encode()).hexdigest(),
         'permissions': ['join_any_room', 'create_room', 'moderate'],
         'name': 'Admin User'
     },
