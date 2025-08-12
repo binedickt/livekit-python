@@ -370,8 +370,14 @@
                             continue;
                         }
                         for (const publication of participant.trackPublications.values()) {
+                            // Only subscribe if the track is already published
                             if (publication.track && publication.track.kind === 'video') {
                                 addVideoTrack(publication.track, participant.name || participant.identity);
+                            } else if (!publication.track) {
+                                // If track not yet subscribed, try subscribing explicitly
+                                participant.subscribe(publication).catch(e => {
+                                    console.warn('Failed to subscribe to track', e);
+                                });
                             }
                         }
                     }
