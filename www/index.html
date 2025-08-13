@@ -585,6 +585,7 @@
         function setupChatEventListeners() {
             currentRoom.on(window.LivekitClient.RoomEvent.DataReceived, (payload, participant) => {
                 const message = new TextDecoder().decode(payload);
+                console.log('Received chat message:', message, 'from:', participant.identity);
                 try {
                     const chatMessage = JSON.parse(message);
                     if (chatMessage.type === 'chat') {
@@ -595,7 +596,7 @@
                         );
                     }
                 } catch (error) {
-                    console.error('Failed to parse chat message:', error);
+                    console.error('Failed to parse chat message:', error, 'Raw message:', message);
                 }
             });
 
@@ -624,12 +625,12 @@
 
             try {
                 const encoded = new TextEncoder().encode(JSON.stringify(chatMessage));
-                currentRoom.localParticipant.publishData(encoded, { reliable: true });
-                console.log('Chat message sent:', chatMessage);
+                console.log('Sending chat message:', chatMessage, 'Encoded length:', encoded.length);
+                currentRoom.localParticipant.publishData(encoded);
                 displayChatMessage(chatMessage.sender, chatMessage.text, true);
                 chatInput.value = '';
             } catch (error) {
-                console.error('Failed to send chat message:', error);
+                console.error('Failed to send chat message:', error, 'Message:', chatMessage);
                 showMessage('roomMessage', 'Failed to send message: ' + error.message, 'error');
             }
         }
