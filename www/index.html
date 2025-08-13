@@ -498,13 +498,51 @@
                 autoSubscribe: true
             });
 
+            // Set up connection state listeners
+            currentRoom.on(window.LivekitClient.RoomEvent.StateChanged, (state) => {
+                console.log(`Room state changed: ${state}`);
+                if (state === 'disconnected') {
+                    showMessage('roomMessage', 'Disconnected from room', 'error');
+                }
+            });
+
+            currentRoom.on(window.LivekitClient.RoomEvent.Reconnecting, () => {
+                console.log('Attempting to reconnect to room...');
+                showMessage('roomMessage', 'Reconnecting to room...', 'error');
+            });
+
+            currentRoom.on(window.LivekitClient.RoomEvent.Reconnected, () => {
+                console.log('Reconnected to room');
+                showMessage('roomMessage', 'Reconnected to room', 'success');
+            });
+
             // Set up all event listeners BEFORE connecting
             setupRoomEventListeners();
             setupChatEventListeners();
 
             // Connect to the room
-            await currentRoom.connect(data.url, data.token);
-            console.log('Connected to room:', roomName);
+            try {
+                await currentRoom.connect(data.url, data.token);
+                console.log('Connected to room:', roomName, 'State:', currentRoom.state);
+            } catch (error) {
+                console.error('Failed to connect to room:', error);
+                throw new Error('Failed to connect to room: ' + error.message);
+            }
+
+            // Wait for data channel to be ready
+            await new Promise((resolve) => {
+                if (currentRoom.state === 'connected') {
+                    console.log('Room is connected, data channel should be ready');
+                    resolve();
+                } else {
+                    currentRoom.once(window.LivekitClient.RoomEvent.StateChanged, (state) => {
+                        if (state === 'connected') {
+                            console.log('Room connected after state change');
+                            resolve();
+                        }
+                    });
+                }
+            });
 
             // Handle any existing participants
             handleExistingParticipants();
@@ -617,6 +655,12 @@
             const message = chatInput.value.trim();
             if (!message || !currentRoom) return;
 
+            if (currentRoom.state !== 'connected') {
+                console.warn('Cannot send message: Room is not connected, state:', currentRoom.state);
+                showMessage('roomMessage', 'Cannot send message: Room is not connected', 'error');
+                return;
+            }
+
             const chatMessage = {
                 type: 'chat',
                 sender: currentUser.name || currentRoom.localParticipant.identity || 'Anonymous',
@@ -630,7 +674,7 @@
                 displayChatMessage(chatMessage.sender, chatMessage.text, true);
                 chatInput.value = '';
             } catch (error) {
-                console.error('Failed to send chat message:', error, 'Message:', chatMessage);
+                console.error('Failed to send chat message:', error, 'Message:', chatMessage, 'Room state:', currentRoom.state);
                 showMessage('roomMessage', 'Failed to send message: ' + error.message, 'error');
             }
         }
