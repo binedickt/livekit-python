@@ -131,15 +131,23 @@
         .participant-wrapper {
             position: relative;
             display: inline-block;
-            width: 200px;
-            height: 150px;
+            width: 250px;
+            height: 180px;
             background: #000;
-            border-radius: 6px;
+            border-radius: 8px;
             overflow: hidden;
+            border: 2px solid #ddd;
         }
 
-        .participant-wrapper video,
-        .participant-wrapper audio {
+        .participant-wrapper.local {
+            border-color: #4CAF50;
+        }
+
+        .participant-wrapper.remote {
+            border-color: #2196F3;
+        }
+
+        .participant-wrapper video {
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -147,9 +155,7 @@
         }
 
         .participant-wrapper audio {
-            height: auto;
-            width: 100%;
-            display: none; /* Hide audio element, just play sound */
+            display: none;
         }
 
         .name-label {
@@ -158,10 +164,11 @@
             left: 5px;
             background: rgba(0,0,0,0.7);
             color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
+            padding: 4px 8px;
+            border-radius: 4px;
             font-size: 12px;
             user-select: none;
+            font-weight: 500;
         }
 
         .mute-button {
@@ -171,11 +178,16 @@
             background: rgba(0,0,0,0.7);
             color: white;
             border: none;
-            border-radius: 3px;
-            padding: 2px 6px;
-            font-size: 12px;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 11px;
             cursor: pointer;
             user-select: none;
+            font-weight: 500;
+        }
+
+        .mute-button:hover {
+            background: rgba(0,0,0,0.9);
         }
 
         .room-controls {
@@ -186,6 +198,15 @@
 
         .room-controls button {
             flex: 1;
+        }
+
+        .debug-info {
+            margin-top: 1rem;
+            padding: 0.5rem;
+            background: #f0f0f0;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
         }
     </style>
 </head>
@@ -236,9 +257,11 @@
                 <div class="room-controls">
                     <button id="joinBtn">Join Room</button>
                     <button id="createRoomBtn" style="display: none;">Create Room</button>
+                    <button id="debugBtn" type="button" onclick="debugParticipants()">Debug</button>
                 </div>
 
                 <div class="video-container" id="videoContainer"></div>
+                <div id="debugInfo" class="debug-info" style="display: none;"></div>
             </div>
         </div>
     </div>
@@ -399,7 +422,7 @@
             currentRoom = new window.LivekitClient.Room({
                 adaptiveStream: true,
                 dynacast: true,
-                autoSubscribe: true // Enable auto-subscription to all tracks
+                autoSubscribe: true
             });
 
             // Set up all event listeners BEFORE connecting
@@ -441,91 +464,92 @@
         function setupRoomEventListeners() {
             // Handle new participants connecting
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
-                console.log('Participant connected:', participant.identity, 'SID:', participant.sid);
-                // Don't immediately subscribe here - wait for TrackPublished events
+                console.log('🟢 Participant connected:', participant.identity, 'SID:', participant.sid);
+                debugParticipants();
             });
 
             // Handle participants disconnecting
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
-                console.log('Participant disconnected:', participant.identity, 'SID:', participant.sid);
+                console.log('🔴 Participant disconnected:', participant.identity, 'SID:', participant.sid);
                 removeParticipantTracks(participant);
+                debugParticipants();
             });
 
             // Handle track publication - this is the main event we rely on
             currentRoom.on(window.LivekitClient.RoomEvent.TrackPublished, (publication, participant) => {
-                console.log(`Track published: ${publication.kind} from ${participant.identity}, SID: ${publication.trackSid}`);
+                console.log(`📹 Track published: ${publication.kind} from ${participant.identity}, SID: ${publication.trackSid}`);
                 
                 if (!isLocalParticipant(participant)) {
                     // If the track is already available, handle it immediately
                     if (publication.track) {
-                        console.log(`Track already available, handling immediately`);
-                        handleTrack(publication.track, participant.name, false);
+                        console.log(`✅ Track already available, handling immediately`);
+                        handleTrack(publication.track, participant, false);
                     } else {
                         // If track is not yet available, wait for subscription
-                        console.log(`Track not yet available, waiting for subscription...`);
+                        console.log(`⏳ Track not yet available, waiting for subscription...`);
                     }
                 }
+                debugParticipants();
             });
 
             // Handle track unpublication
             currentRoom.on(window.LivekitClient.RoomEvent.TrackUnpublished, (publication, participant) => {
-                console.log(`Track unpublished: ${publication.kind} from ${participant.identity}`);
-                // Remove the track from UI if needed
-                const trackElement = document.querySelector(`[data-track-sid="${publication.trackSid}"]`);
-                if (trackElement) {
-                    trackElement.remove();
-                }
+                console.log(`❌ Track unpublished: ${publication.kind} from ${participant.identity}`);
+                removeSpecificTrack(publication, participant);
+                debugParticipants();
             });
 
             // Handle successful track subscription
             currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
-                console.log(`Track subscribed: ${track.kind} from ${participant.identity}, SID: ${publication.trackSid}`);
+                console.log(`🎯 Track subscribed: ${track.kind} from ${participant.identity}, SID: ${publication.trackSid}`);
                 if (!isLocalParticipant(participant)) {
-                    handleTrack(track, participant.name, false);
+                    handleTrack(track, participant, false);
                 }
+                debugParticipants();
             });
 
             // Handle track subscription failures
             currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscriptionFailed, (trackSid, participant, reason) => {
-                console.error(`Track subscription failed for ${trackSid} from ${participant.identity}:`, reason);
+                console.error(`💥 Track subscription failed for ${trackSid} from ${participant.identity}:`, reason);
             });
 
             // Handle connection quality updates (optional)
             currentRoom.on(window.LivekitClient.RoomEvent.ConnectionQualityChanged, (quality, participant) => {
-                console.log(`Connection quality changed for ${participant?.identity || 'local'}: ${quality}`);
+                console.log(`📶 Connection quality changed for ${participant?.identity || 'local'}: ${quality}`);
             });
         }
 
         function handleExistingParticipants() {
             // Use a small delay to allow existing participants to finish their setup
             setTimeout(() => {
-                console.log(`Checking ${currentRoom.participants.size} existing participants...`);
+                console.log(`🔍 Checking ${currentRoom.participants.size} existing participants...`);
                 
                 currentRoom.participants.forEach(participant => {
-                    console.log(`Existing participant: ${participant.identity}, SID: ${participant.sid}`);
+                    console.log(`👤 Existing participant: ${participant.identity}, SID: ${participant.sid}`);
                     
                     if (participant.trackPublications && participant.trackPublications.size > 0) {
-                        console.log(`Found ${participant.trackPublications.size} published tracks from ${participant.identity}`);
+                        console.log(`📊 Found ${participant.trackPublications.size} published tracks from ${participant.identity}`);
                         
                         participant.trackPublications.forEach(publication => {
-                            console.log(`Checking publication: ${publication.kind}, track available: ${!!publication.track}`);
+                            console.log(`🔎 Checking publication: ${publication.kind}, track available: ${!!publication.track}`);
                             
                             if (publication.track) {
                                 // Track is already available
-                                handleTrack(publication.track, participant.name, false);
+                                handleTrack(publication.track, participant, false);
                             } else if (publication.trackSid) {
                                 // Track is published but not yet subscribed
-                                console.log(`Subscribing to ${publication.kind} track from ${participant.identity}`);
+                                console.log(`🔔 Subscribing to ${publication.kind} track from ${participant.identity}`);
                                 publication.setSubscribed(true).catch(err => {
                                     console.error(`Failed to subscribe to track ${publication.trackSid}:`, err);
                                 });
                             }
                         });
                     } else {
-                        console.log(`No published tracks yet for ${participant.identity} - will handle via TrackPublished events`);
+                        console.log(`⚠️ No published tracks yet for ${participant.identity} - will handle via TrackPublished events`);
                     }
                 });
-            }, 500); // 500ms delay to allow for track publication
+                debugParticipants();
+            }, 500);
         }
 
         // Helper function to check if participant is local
@@ -533,34 +557,171 @@
             return participant === currentRoom.localParticipant;
         }
 
-        function subscribeToParticipantTracks(participant, isLocal) {
-            console.log(`Subscribing to tracks for participant: ${participant.identity}, isLocal: ${isLocal}`);
-            participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, track => {
-                console.log(`Track subscribed: ${track.kind} from ${participant.identity}`);
-                handleTrack(track, participant, isLocal);
-            });
-
-            participant.on(window.LivekitClient.ParticipantEvent.TrackUnsubscribed, track => {
-                console.log(`Track unsubscribed: ${track.kind} from ${participant.identity}`);
-                removeTrack(track, participant);
-            });
-
-            // Check if trackPublications exists and is a Map
-            if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
-                participant.trackPublications.forEach(pub => {
-                    console.log(`Processing track publication: ${pub.kind}, SID: ${pub.trackSid}, isSubscribed: ${pub.isSubscribed}, hasTrack: ${!!pub.track}`);
-                    if (pub.track && pub.isSubscribed) {
-                        console.log(`Handling subscribed track: ${pub.kind} for ${participant.identity}`);
-                        handleTrack(pub.track, participant, isLocal);
-                    } else if (!pub.isSubscribed) {
-                        console.log(`Subscribing to track: ${pub.kind}, SID: ${pub.trackSid} for ${participant.identity}`);
-                        participant.subscribeToTrack(pub.trackSid).catch(err => {
-                            console.error(`Failed to subscribe to track ${pub.trackSid} for ${participant.identity}:`, err);
-                        });
+        // FIXED: Enhanced handleTrack function with unique participant identification
+        function handleTrack(track, participant, isLocal = false) {
+            const participantId = getUniqueParticipantId(participant, isLocal);
+            console.log(`🎬 Handling ${track.kind} track for participant: ${participantId}, isLocal: ${isLocal}`);
+            
+            // Get or create participant wrapper
+            let wrapper = getParticipantWrapper(participantId, isLocal);
+            
+            if (track.kind === 'video') {
+                // Remove any existing video in this wrapper
+                const existingVideo = wrapper.querySelector('video');
+                if (existingVideo) {
+                    console.log(`🔄 Replacing existing video for ${participantId}`);
+                    existingVideo.remove();
+                }
+                
+                // Create new video element
+                const video = document.createElement('video');
+                video.autoplay = true;
+                video.playsInline = true;
+                video.muted = isLocal; // Mute local video to prevent feedback
+                video.setAttribute('data-track-kind', 'video');
+                video.setAttribute('data-participant-id', participantId);
+                
+                // Attach track to video
+                try {
+                    track.attach(video);
+                    wrapper.appendChild(video);
+                    console.log(`✅ Video track attached for ${participantId}`);
+                } catch (error) {
+                    console.error(`❌ Failed to attach video track for ${participantId}:`, error);
+                }
+                
+            } else if (track.kind === 'audio') {
+                // Handle audio tracks (don't play local audio to prevent feedback)
+                if (!isLocal) {
+                    // Remove any existing audio in this wrapper
+                    const existingAudio = wrapper.querySelector('audio');
+                    if (existingAudio) {
+                        console.log(`🔄 Replacing existing audio for ${participantId}`);
+                        existingAudio.remove();
                     }
-                });
-            } else {
-                console.log(`No trackPublications for participant: ${participant.identity}`);
+                    
+                    // Create new audio element
+                    const audio = document.createElement('audio');
+                    audio.autoplay = true;
+                    audio.setAttribute('data-track-kind', 'audio');
+                    audio.setAttribute('data-participant-id', participantId);
+                    
+                    // Attach track to audio
+                    try {
+                        track.attach(audio);
+                        wrapper.appendChild(audio);
+                        console.log(`✅ Audio track attached for ${participantId}`);
+                    } catch (error) {
+                        console.error(`❌ Failed to attach audio track for ${participantId}:`, error);
+                    }
+                }
+            }
+            
+            // Update or create participant label
+            updateParticipantLabel(wrapper, participant, isLocal);
+            updateMuteButton(wrapper, participant, isLocal);
+        }
+
+        function getUniqueParticipantId(participant, isLocal) {
+            if (isLocal) {
+                return 'local';
+            }
+            return participant.sid || participant.identity || participant.name || `unknown-${Date.now()}`;
+        }
+
+        function getParticipantWrapper(participantId, isLocal) {
+            const videoContainer = document.getElementById('videoContainer');
+            let wrapper = videoContainer.querySelector(`[data-participant-id="${participantId}"]`);
+            
+            if (!wrapper) {
+                wrapper = document.createElement('div');
+                wrapper.className = `participant-wrapper ${isLocal ? 'local' : 'remote'}`;
+                wrapper.setAttribute('data-participant-id', participantId);
+                videoContainer.appendChild(wrapper);
+                console.log(`🆕 Created new wrapper for ${participantId}`);
+            }
+            
+            return wrapper;
+        }
+
+        function updateParticipantLabel(wrapper, participant, isLocal) {
+            let nameLabel = wrapper.querySelector('.name-label');
+            if (!nameLabel) {
+                nameLabel = document.createElement('div');
+                nameLabel.className = 'name-label';
+                wrapper.appendChild(nameLabel);
+            }
+            
+            const displayName = isLocal ? 'You' : (participant.name || participant.identity || 'Unknown');
+            nameLabel.textContent = displayName;
+        }
+
+        function updateMuteButton(wrapper, participant, isLocal) {
+            let muteBtn = wrapper.querySelector('.mute-button');
+            if (!muteBtn) {
+                muteBtn = document.createElement('button');
+                muteBtn.className = 'mute-button';
+                wrapper.appendChild(muteBtn);
+                
+                muteBtn.onclick = () => {
+                    if (isLocal) {
+                        toggleLocalAudio(muteBtn);
+                    } else {
+                        toggleRemoteAudio(wrapper, muteBtn);
+                    }
+                };
+            }
+            
+            muteBtn.textContent = isLocal ? 'Mute Mic' : 'Mute Audio';
+        }
+
+        function toggleLocalAudio(button) {
+            const audioPub = Array.from(currentRoom.localParticipant.audioTracks.values())[0];
+            if (!audioPub) return;
+            
+            const track = audioPub.track;
+            const isEnabled = track.isEnabled;
+            track.setEnabled(!isEnabled);
+            button.textContent = isEnabled ? 'Unmute Mic' : 'Mute Mic';
+        }
+
+        function toggleRemoteAudio(wrapper, button) {
+            const audio = wrapper.querySelector('audio');
+            if (!audio) return;
+            
+            audio.muted = !audio.muted;
+            button.textContent = audio.muted ? 'Unmute Audio' : 'Mute Audio';
+        }
+
+        function removeSpecificTrack(publication, participant) {
+            const participantId = getUniqueParticipantId(participant, isLocalParticipant(participant));
+            const wrapper = document.querySelector(`[data-participant-id="${participantId}"]`);
+            
+            if (!wrapper) return;
+            
+            const trackElement = wrapper.querySelector(`[data-track-kind="${publication.kind}"]`);
+            if (trackElement) {
+                trackElement.remove();
+                console.log(`🗑️ Removed ${publication.kind} track for ${participantId}`);
+            }
+            
+            // Remove wrapper if no tracks remain
+            const hasVideo = !!wrapper.querySelector('video');
+            const hasAudio = !!wrapper.querySelector('audio');
+            if (!hasVideo && !hasAudio) {
+                wrapper.remove();
+                console.log(`🗑️ Removed empty wrapper for ${participantId}`);
+            }
+        }
+
+        function removeParticipantTracks(participant) {
+            const participantId = getUniqueParticipantId(participant, false);
+            console.log(`🗑️ Removing all tracks for participant: ${participantId}`);
+            
+            const wrapper = document.querySelector(`[data-participant-id="${participantId}"]`);
+            if (wrapper) {
+                wrapper.remove();
+                console.log(`✅ Removed wrapper for ${participantId}`);
             }
         }
 
@@ -573,121 +734,51 @@
             showMessage('roomMessage', 'Left the room', 'success');
         }
 
-        function getParticipantWrapper(participantSid) {
-            const videoContainer = document.getElementById('videoContainer');
-            let wrapper = videoContainer.querySelector(`.participant-wrapper[data-participant-sid="${participantSid}"]`);
-            if (!wrapper) {
-                wrapper = document.createElement('div');
-                wrapper.className = 'participant-wrapper';
-                wrapper.setAttribute('data-participant-sid', participantSid);
-                videoContainer.appendChild(wrapper);
+        // Debug function to help troubleshoot
+        function debugParticipants() {
+            if (!currentRoom) {
+                console.log('❌ No current room');
+                return;
             }
-            return wrapper;
-        }
-
-        function handleTrack(track, participant, isLocal = false) {
-            console.log(`Handling track: ${track.kind} for ${participant.identity}, isLocal: ${isLocal}`);
-            const wrapper = getParticipantWrapper(participant.sid);
-
-            if (track.kind === 'video') {
-                const oldVideo = wrapper.querySelector('video');
-                if (oldVideo) {
-                    console.log(`Removing old video for ${participant.identity}`);
-                    track.detach().forEach(el => el.remove());
-                    oldVideo.remove();
-                }
-                const video = document.createElement('video');
-                video.autoplay = true;
-                video.playsInline = true;
-                video.muted = isLocal;
-                console.log(`Attaching video track for ${participant.identity}`);
-                track.attach(video);
-                wrapper.appendChild(video);
-            } else if (track.kind === 'audio') {
-                const oldAudio = wrapper.querySelector('audio');
-                if (oldAudio) {
-                    console.log(`Removing old audio for ${participant.identity}`);
-                    track.detach().forEach(el => el.remove());
-                    oldAudio.remove();
-                }
-                const audio = document.createElement('audio');
-                audio.autoplay = true;
-                audio.controls = false;
-                audio.muted = isLocal;
-                console.log(`Attaching audio track for ${participant.identity}`);
-                track.attach(audio);
-                wrapper.appendChild(audio);
-            }
-
-            let nameLabel = wrapper.querySelector('.name-label');
-            if (!nameLabel) {
-                nameLabel = document.createElement('div');
-                nameLabel.className = 'name-label';
-                nameLabel.textContent = participant.name || participant.identity;
-                wrapper.appendChild(nameLabel);
-            }
-
-            let muteBtn = wrapper.querySelector('.mute-button');
-            if (!muteBtn) {
-                muteBtn = document.createElement('button');
-                muteBtn.className = 'mute-button';
-                muteBtn.textContent = isLocal ? 'Mute Mic' : 'Mute Audio';
-                muteBtn.onclick = () => {
-                    if (isLocal) {
-                        const audioPub = currentRoom.localParticipant.audioTracks.values().next().value;
-                        if (!audioPub) return;
-                        const track = audioPub.track;
-                        if (track.isEnabled) {
-                            track.setEnabled(false);
-                            muteBtn.textContent = 'Unmute Mic';
-                        } else {
-                            track.setEnabled(true);
-                            muteBtn.textContent = 'Mute Mic';
-                        }
-                    } else {
-                        const audio = wrapper.querySelector('audio');
-                        if (!audio) return;
-                        audio.muted = !audio.muted;
-                        muteBtn.textContent = audio.muted ? 'Unmute Audio' : 'Mute Audio';
-                    }
-                };
-                wrapper.appendChild(muteBtn);
-            }
-        }
-
-        function removeTrack(track, participant) {
-            console.log(`Removing track: ${track.kind} for ${participant.identity}`);
-            const wrapper = getParticipantWrapper(participant.sid);
-            if (!wrapper) return;
-
-            if (track.kind === 'video') {
-                const video = wrapper.querySelector('video');
-                if (video) {
-                    track.detach().forEach(el => el.remove());
-                    video.remove();
-                }
-            } else if (track.kind === 'audio') {
-                const audio = wrapper.querySelector('audio');
-                if (audio) {
-                    track.detach().forEach(el => el.remove());
-                    audio.remove();
-                }
-            }
-
-            const hasVideo = !!wrapper.querySelector('video');
-            const hasAudio = !!wrapper.querySelector('audio');
-            if (!hasVideo && !hasAudio) {
-                wrapper.remove();
-            }
-        }
-
-        function removeParticipantTracks(participant) {
-            console.log(`Removing participant tracks for ${participant.identity}`);
-            const videoContainer = document.getElementById('videoContainer');
-            const wrapper = videoContainer.querySelector(`.participant-wrapper[data-participant-sid="${participant.sid}"]`);
-            if (wrapper) {
-                wrapper.remove();
-            }
+            
+            console.log('=== 🐛 PARTICIPANT DEBUG ===');
+            console.log(`Total participants: ${currentRoom.participants.size + 1} (including local)`);
+            console.log(`Local participant: ${currentRoom.localParticipant.identity || 'unnamed'}`);
+            
+            let debugText = `Participants: ${currentRoom.participants.size + 1}\nLocal: ${currentRoom.localParticipant.identity || 'unnamed'}\n\n`;
+            
+            currentRoom.participants.forEach((participant, index) => {
+                console.log(`Remote participant ${index + 1}: ${participant.identity}, SID: ${participant.sid}`);
+                console.log(`  - Published tracks: ${participant.trackPublications.size}`);
+                
+                debugText += `Remote ${index + 1}: ${participant.identity}\n`;
+                debugText += `  Tracks: ${participant.trackPublications.size}\n`;
+                
+                participant.trackPublications.forEach(pub => {
+                    console.log(`    - ${pub.kind}: ${pub.trackSid} (subscribed: ${pub.isSubscribed}, has track: ${!!pub.track})`);
+                    debugText += `    ${pub.kind}: ${pub.isSubscribed ? '✅' : '❌'}\n`;
+                });
+            });
+            
+            // Check DOM elements
+            const wrappers = document.querySelectorAll('.participant-wrapper');
+            console.log(`Video wrappers in DOM: ${wrappers.length}`);
+            debugText += `\nDOM wrappers: ${wrappers.length}\n`;
+            
+            wrappers.forEach((wrapper, index) => {
+                const participantId = wrapper.getAttribute('data-participant-id');
+                const hasVideo = !!wrapper.querySelector('video');
+                const hasAudio = !!wrapper.querySelector('audio');
+                console.log(`  Wrapper ${index + 1}: ${participantId} (video: ${hasVideo}, audio: ${hasAudio})`);
+                debugText += `  ${participantId}: V:${hasVideo ? '✅' : '❌'} A:${hasAudio ? '✅' : '❌'}\n`;
+            });
+            
+            // Update debug info display
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.textContent = debugText;
+            debugInfo.style.display = 'block';
+            
+            console.log('=== END DEBUG ===');
         }
 
         function showLoginForm() {
