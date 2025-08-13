@@ -208,13 +208,65 @@
             font-size: 12px;
             font-family: monospace;
         }
+
+        .chat-container {
+            margin-top: 1.5rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            padding: 1rem;
+            background: #f8f9fa;
+        }
+
+        .chat-messages {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            background: white;
+            border-radius: 4px;
+        }
+
+        .chat-message {
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+
+        .chat-message.local {
+            background: #e6f3ff;
+            margin-left: 10%;
+        }
+
+        .chat-message.remote {
+            background: #f0f0f0;
+            margin-right: 10%;
+        }
+
+        .chat-message .sender {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .chat-input-container {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input {
+            flex-grow: 1;
+        }
+
+        .chat-send-btn {
+            width: auto;
+            padding: 0.75rem 1rem;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🎥 Secure Video Rooms</h1>
-            <p>LiveKit with Authentication</p>
+            <p>LiveKit with Authentication & Chat</p>
         </div>
 
         <div class="content">
@@ -254,6 +306,13 @@
                     </select>
                 </div>
 
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="noMedia" checked>
+                        Join without video/audio
+                    </label>
+                </div>
+
                 <div class="room-controls">
                     <button id="joinBtn">Join Room</button>
                     <button id="createRoomBtn" style="display: none;">Create Room</button>
@@ -261,6 +320,15 @@
                 </div>
 
                 <div class="video-container" id="videoContainer"></div>
+
+                <div class="chat-container" id="chatContainer" style="display: none;">
+                    <div class="chat-messages" id="chatMessages"></div>
+                    <div class="chat-input-container">
+                        <input type="text" id="chatInput" class="chat-input" placeholder="Type a message..." />
+                        <button id="chatSendBtn" class="chat-send-btn">Send</button>
+                    </div>
+                </div>
+
                 <div id="debugInfo" class="debug-info" style="display: none;"></div>
             </div>
         </div>
@@ -272,6 +340,7 @@
         let currentUser = null;
         let currentRoom = null;
         let joined = false;
+        let dataChannel = null;
 
         checkAuthStatus();
 
@@ -349,11 +418,14 @@
             if (currentRoom) {
                 currentRoom.disconnect();
                 currentRoom = null;
+                dataChannel = null;
             }
             joined = false;
             updateJoinButtonState();
 
             document.getElementById('videoContainer').innerHTML = '';
+            document.getElementById('chatMessages').innerHTML = '';
+            document.getElementById('chatContainer').style.display = 'none';
             showLoginForm();
         }
 
@@ -411,9 +483,12 @@
 
         async function joinRoom() {
             const roomName = document.getElementById('roomSelect').value;
+            const noMedia = document.getElementById('noMedia').checked;
             if (!roomName) throw new Error('Please select a room');
 
             document.getElementById('videoContainer').innerHTML = '';
+            document.getElementById('chatMessages').innerHTML = '';
+            document.getElementById('chatContainer').style.display = 'block';
 
             const response = await fetch(`/token?room=${encodeURIComponent(roomName)}`, { credentials: 'include' });
             const data = await response.json();
@@ -427,79 +502,71 @@
 
             // Set up all event listeners BEFORE connecting
             setupRoomEventListeners();
+            setupChatDataChannel();
 
             // Connect to the room
             await currentRoom.connect(data.url, data.token);
             console.log('Connected to room:', roomName);
 
-            // Handle any existing participants (with proper timing)
+            // Handle any existing participants
             handleExistingParticipants();
 
-            // Publish local tracks (audio + video)
-            try {
-                const localTracks = await window.LivekitClient.createLocalTracks({
-                    audio: true,
-                    video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
-                });
+            // Publish local tracks if not disabled
+            if (!noMedia) {
+                try {
+                    const localTracks = await window.LivekitClient.createLocalTracks({
+                        audio: true,
+                        video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
+                    });
 
-                for (const track of localTracks) {
-                    await currentRoom.localParticipant.publishTrack(track);
-                    console.log('Published local track:', track.kind);
-                    handleTrack(track, currentRoom.localParticipant, true);
-                }
-            } catch (error) {
-                console.error('Failed to publish local tracks:', error);
-                showMessage('roomMessage', 'Failed to access camera/microphone', 'error');
-                throw error;
-            } finally {
-                joinBtn.disabled = false;
-                if (joinBtn.textContent === 'Joining...') {
-                    joinBtn.textContent = 'Join Room';
+                    for (const track of localTracks) {
+                        await currentRoom.localParticipant.publishTrack(track);
+                        console.log('Published local track:', track.kind);
+                        handleTrack(track, currentRoom.localParticipant, true);
+                    }
+                } catch (error) {
+                    console.error('Failed to publish local tracks:', error);
+                    showMessage('roomMessage', 'Failed to access camera/microphone', 'error');
+                    throw error;
                 }
             }
 
+            joinBtn.disabled = false;
             showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
         }
 
         function setupRoomEventListeners() {
-            // Handle new participants connecting
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantConnected, participant => {
                 console.log('🟢 Participant connected:', participant.identity, 'SID:', participant.sid);
                 debugParticipants();
             });
 
-            // Handle participants disconnecting
             currentRoom.on(window.LivekitClient.RoomEvent.ParticipantDisconnected, participant => {
                 console.log('🔴 Participant disconnected:', participant.identity, 'SID:', participant.sid);
                 removeParticipantTracks(participant);
                 debugParticipants();
             });
 
-            // Handle track publication - this is the main event we rely on
             currentRoom.on(window.LivekitClient.RoomEvent.TrackPublished, (publication, participant) => {
                 console.log(`📹 Track published: ${publication.kind} from ${participant.identity}, SID: ${publication.trackSid}`);
                 
                 if (!isLocalParticipant(participant)) {
-                    // If the track is already available, handle it immediately
                     if (publication.track) {
                         console.log(`✅ Track already available, handling immediately`);
                         handleTrack(publication.track, participant, false);
                     } else {
-                        // If track is not yet available, wait for subscription
                         console.log(`⏳ Track not yet available, waiting for subscription...`);
                     }
                 }
                 debugParticipants();
             });
 
-            // Handle track unpublication
             currentRoom.on(window.LivekitClient.RoomEvent.TrackUnpublished, (publication, participant) => {
                 console.log(`❌ Track unpublished: ${publication.kind} from ${participant.identity}`);
                 removeSpecificTrack(publication, participant);
                 debugParticipants();
             });
 
-            // Handle successful track subscription
             currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
                 console.log(`🎯 Track subscribed: ${track.kind} from ${participant.identity}, SID: ${publication.trackSid}`);
                 if (!isLocalParticipant(participant)) {
@@ -508,19 +575,81 @@
                 debugParticipants();
             });
 
-            // Handle track subscription failures
             currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscriptionFailed, (trackSid, participant, reason) => {
                 console.error(`💥 Track subscription failed for ${trackSid} from ${participant.identity}:`, reason);
             });
 
-            // Handle connection quality updates (optional)
             currentRoom.on(window.LivekitClient.RoomEvent.ConnectionQualityChanged, (quality, participant) => {
                 console.log(`📶 Connection quality changed for ${participant?.identity || 'local'}: ${quality}`);
             });
         }
 
+        function setupChatDataChannel() {
+            // Create or get data channel for chat
+            dataChannel = currentRoom.localParticipant.getDataChannel('chat', {
+                reliable: true
+            });
+
+            currentRoom.on(window.LivekitClient.RoomEvent.DataReceived, (payload, participant) => {
+                const message = new TextDecoder().decode(payload);
+                try {
+                    const chatMessage = JSON.parse(message);
+                    if (chatMessage.type === 'chat') {
+                        displayChatMessage(chatMessage.sender, chatMessage.text, false);
+                    }
+                } catch (error) {
+                    console.error('Failed to parse chat message:', error);
+                }
+            });
+
+            // Setup chat input event listener
+            const chatInput = document.getElementById('chatInput');
+            const chatSendBtn = document.getElementById('chatSendBtn');
+
+            chatSendBtn.addEventListener('click', sendChatMessage);
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendChatMessage();
+                }
+            });
+        }
+
+        function sendChatMessage() {
+            const chatInput = document.getElementById('chatInput');
+            const message = chatInput.value.trim();
+            if (!message || !dataChannel) return;
+
+            const chatMessage = {
+                type: 'chat',
+                sender: currentUser.name || currentRoom.localParticipant.identity,
+                text: message
+            };
+
+            try {
+                const encoded = new TextEncoder().encode(JSON.stringify(chatMessage));
+                dataChannel.send(encoded);
+                displayChatMessage(chatMessage.sender, chatMessage.text, true);
+                chatInput.value = '';
+            } catch (error) {
+                console.error('Failed to send chat message:', error);
+                showMessage('roomMessage', 'Failed to send message', 'error');
+            }
+        }
+
+        function displayChatMessage(sender, text, isLocal) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${isLocal ? 'local' : 'remote'}`;
+            messageDiv.innerHTML = `
+                <div class="sender">${sender}</div>
+                <div>${text}</div>
+            `;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
         function handleExistingParticipants() {
-            // Use a small delay to allow existing participants to finish their setup
             setTimeout(() => {
                 console.log(`🔍 Checking ${currentRoom.participants.size} existing participants...`);
                 
@@ -534,10 +663,8 @@
                             console.log(`🔎 Checking publication: ${publication.kind}, track available: ${!!publication.track}`);
                             
                             if (publication.track) {
-                                // Track is already available
                                 handleTrack(publication.track, participant, false);
                             } else if (publication.trackSid) {
-                                // Track is published but not yet subscribed
                                 console.log(`🔔 Subscribing to ${publication.kind} track from ${participant.identity}`);
                                 publication.setSubscribed(true).catch(err => {
                                     console.error(`Failed to subscribe to track ${publication.trackSid}:`, err);
@@ -552,36 +679,30 @@
             }, 500);
         }
 
-        // Helper function to check if participant is local
         function isLocalParticipant(participant) {
             return participant === currentRoom.localParticipant;
         }
 
-        // FIXED: Enhanced handleTrack function with unique participant identification
         function handleTrack(track, participant, isLocal = false) {
             const participantId = getUniqueParticipantId(participant, isLocal);
             console.log(`🎬 Handling ${track.kind} track for participant: ${participantId}, isLocal: ${isLocal}`);
             
-            // Get or create participant wrapper
             let wrapper = getParticipantWrapper(participantId, isLocal);
             
             if (track.kind === 'video') {
-                // Remove any existing video in this wrapper
                 const existingVideo = wrapper.querySelector('video');
                 if (existingVideo) {
                     console.log(`🔄 Replacing existing video for ${participantId}`);
                     existingVideo.remove();
                 }
                 
-                // Create new video element
                 const video = document.createElement('video');
                 video.autoplay = true;
                 video.playsInline = true;
-                video.muted = isLocal; // Mute local video to prevent feedback
+                video.muted = isLocal;
                 video.setAttribute('data-track-kind', 'video');
                 video.setAttribute('data-participant-id', participantId);
                 
-                // Attach track to video
                 try {
                     track.attach(video);
                     wrapper.appendChild(video);
@@ -591,22 +712,18 @@
                 }
                 
             } else if (track.kind === 'audio') {
-                // Handle audio tracks (don't play local audio to prevent feedback)
                 if (!isLocal) {
-                    // Remove any existing audio in this wrapper
                     const existingAudio = wrapper.querySelector('audio');
                     if (existingAudio) {
                         console.log(`🔄 Replacing existing audio for ${participantId}`);
                         existingAudio.remove();
                     }
                     
-                    // Create new audio element
                     const audio = document.createElement('audio');
                     audio.autoplay = true;
                     audio.setAttribute('data-track-kind', 'audio');
                     audio.setAttribute('data-participant-id', participantId);
                     
-                    // Attach track to audio
                     try {
                         track.attach(audio);
                         wrapper.appendChild(audio);
@@ -617,7 +734,6 @@
                 }
             }
             
-            // Update or create participant label
             updateParticipantLabel(wrapper, participant, isLocal);
             updateMuteButton(wrapper, participant, isLocal);
         }
@@ -705,7 +821,6 @@
                 console.log(`🗑️ Removed ${publication.kind} track for ${participantId}`);
             }
             
-            // Remove wrapper if no tracks remain
             const hasVideo = !!wrapper.querySelector('video');
             const hasAudio = !!wrapper.querySelector('audio');
             if (!hasVideo && !hasAudio) {
@@ -729,12 +844,14 @@
             if (currentRoom) {
                 currentRoom.disconnect();
                 currentRoom = null;
+                dataChannel = null;
             }
             document.getElementById('videoContainer').innerHTML = '';
+            document.getElementById('chatMessages').innerHTML = '';
+            document.getElementById('chatContainer').style.display = 'none';
             showMessage('roomMessage', 'Left the room', 'success');
         }
 
-        // Debug function to help troubleshoot
         function debugParticipants() {
             if (!currentRoom) {
                 console.log('❌ No current room');
@@ -767,7 +884,6 @@
                 }
             });
             
-            // Check DOM elements
             const wrappers = document.querySelectorAll('.participant-wrapper');
             console.log(`Video wrappers in DOM: ${wrappers.length}`);
             debugText += `\nDOM wrappers: ${wrappers.length}\n`;
@@ -780,7 +896,6 @@
                 debugText += `  ${participantId}: V:${hasVideo ? '✅' : '❌'} A:${hasAudio ? '✅' : '❌'}\n`;
             });
             
-            // Update debug info display
             const debugInfo = document.getElementById('debugInfo');
             debugText += `\n⏰ Last updated: ${new Date().toLocaleTimeString()}`;
             debugInfo.textContent = debugText;
