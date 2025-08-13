@@ -749,15 +749,22 @@
             
             currentRoom.participants.forEach((participant, index) => {
                 console.log(`Remote participant ${index + 1}: ${participant.identity}, SID: ${participant.sid}`);
-                console.log(`  - Published tracks: ${participant.trackPublications.size}`);
+                
+                const trackCount = participant.trackPublications ? participant.trackPublications.size : 0;
+                console.log(`  - Published tracks: ${trackCount}`);
                 
                 debugText += `Remote ${index + 1}: ${participant.identity}\n`;
-                debugText += `  Tracks: ${participant.trackPublications.size}\n`;
+                debugText += `  Tracks: ${trackCount}\n`;
                 
-                participant.trackPublications.forEach(pub => {
-                    console.log(`    - ${pub.kind}: ${pub.trackSid} (subscribed: ${pub.isSubscribed}, has track: ${!!pub.track})`);
-                    debugText += `    ${pub.kind}: ${pub.isSubscribed ? '✅' : '❌'}\n`;
-                });
+                if (participant.trackPublications && participant.trackPublications.size > 0) {
+                    participant.trackPublications.forEach(pub => {
+                        console.log(`    - ${pub.kind}: ${pub.trackSid} (subscribed: ${pub.isSubscribed}, has track: ${!!pub.track})`);
+                        debugText += `    ${pub.kind}: ${pub.isSubscribed ? '✅' : '❌'}\n`;
+                    });
+                } else {
+                    console.log(`    - No track publications available`);
+                    debugText += `    No tracks\n`;
+                }
             });
             
             // Check DOM elements
@@ -775,6 +782,7 @@
             
             // Update debug info display
             const debugInfo = document.getElementById('debugInfo');
+            debugText += `\n⏰ Last updated: ${new Date().toLocaleTimeString()}`;
             debugInfo.textContent = debugText;
             debugInfo.style.display = 'block';
             
