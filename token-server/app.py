@@ -79,6 +79,11 @@ USERS = {
         'password_hash': hashlib.sha256('guest123'.encode()).hexdigest(),
         'permissions': ['join_room'],
         'name': 'Guest User'
+    },
+    'mama': {
+        'password_hash': hashlib.sha256('Marina#08'.encode()).hexdigest(),
+        'permissions': ['join_room'],
+        'name': 'Mama'
     }
 }
 
@@ -86,7 +91,8 @@ USERS = {
 ROOM_PERMISSIONS = {
     'public-room': ['*'],  # Anyone can join
     'private-room': ['admin', 'user1'],  # Only specific users
-    'admin-room': ['admin'],  # Admin only
+    'admin-room': ['admin'],  # Admin only,
+    'family': ['admin', 'mama']
 }
 
 def hash_password(password: str) -> str:
