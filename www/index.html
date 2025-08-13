@@ -428,6 +428,9 @@
 
             // Subscribe to any already-connected participants
             currentRoom.participants.forEach(participant => {
+                    console.log(`Subscribe to any already-connected participants: User ${participant.identity}, SID: ${participant.sid}`);
+                    console.log(`trackPublications for User ${participant.trackPublications}`);
+                    console.log(`trackPublications.forEach for User ${participant.trackPublications.forEach}`);
                     if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
                         participant.trackPublications.forEach(publication => {
                             if (publication.track) {
