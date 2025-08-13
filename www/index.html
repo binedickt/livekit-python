@@ -427,16 +427,21 @@
             });
 
             // Subscribe to any already-connected participants
-            currentRoom.participants.forEach(p => {
-                console.log('Existing participant after connect:', p.identity, 'SID:', p.sid);
-                console.log('Participant trackPublications:', p.trackPublications ? Array.from(p.trackPublications.entries()).map(([sid, pub]) => ({
-                    sid,
-                    kind: pub.kind,
-                    isSubscribed: pub.isSubscribed,
-                    track: !!pub.track
-                })) : 'No trackPublications available');
-                subscribeToParticipantTracks(p, false);
-            });
+            currentRoom.participants.forEach(participant => {
+                    if (participant.trackPublications && typeof participant.trackPublications.forEach === 'function') {
+                        participant.trackPublications.forEach(publication => {
+                            if (publication.track) {
+                                handleTrack(publication.track, participant.name, false);
+                            }
+                        });
+                    }
+
+                    participant.on(window.LivekitClient.ParticipantEvent.TrackSubscribed, (track) => {
+                        {
+                            handleTrack(publication.track, participant.name, false);
+                        }
+                    });
+                });
 
             // Retry subscribing to tracks periodically if none are available
             let retryCount = 0;
