@@ -510,6 +510,7 @@
             // Connect to the room
             await currentRoom.connect(data.url, data.token);
             console.log('Connected to room:', roomName);
+            document.getElementById('roomSelectionSection').classList.add('hidden');
 
             // Handle any existing participants (with proper timing)
             handleExistingParticipants();
