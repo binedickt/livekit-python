@@ -175,6 +175,14 @@
             font-weight: 500;
         }
 
+        .room-name-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
         .mute-button {
             position: absolute;
             top: 5px;
@@ -261,7 +269,7 @@
                     <!-- <button id="createRoomBtn" style="display: none;">Create Room</button> -->
                     <button id="debugBtn" type="button" onclick="debugParticipants()">Debug</button>
                 </div>
-
+                <div id="roomNameDisplay"></div>
                 <div class="video-container" id="videoContainer"></div>
                 <div id="debugInfo" class="debug-info" style="display: none;"></div>
             </div>
@@ -277,6 +285,7 @@
 
         checkAuthStatus();
         // mockLogin();
+        // const useMockMode = true; 
 
         function mockLogin() {
             // Create a fake user object
@@ -413,7 +422,6 @@
             }
         }
 
-        const useMockMode = false; 
 
         const joinBtn = document.getElementById('joinBtn');
         joinBtn.addEventListener('click', async () => {
@@ -465,7 +473,9 @@
                     console.log('Mock Disconnect');
                 }
             };
+            const roomName = document.getElementById('roomSelect').value;
             document.getElementById('roomSelectionSection').classList.add('hidden');
+            document.getElementById('roomNameDisplay').textContent = `Room: ${roomName}`;
             // Simulate publishing local video and audio tracks
             const mockVideoTrack = { kind: 'video', attach: (el) => {
                 console.log('Mock video attached');
@@ -511,6 +521,7 @@
             await currentRoom.connect(data.url, data.token);
             console.log('Connected to room:', roomName);
             document.getElementById('roomSelectionSection').classList.add('hidden');
+            document.getElementById('roomNameDisplay').textContent = `Room: ${roomName}`;
 
             // Handle any existing participants (with proper timing)
             handleExistingParticipants();
@@ -810,6 +821,7 @@
                 currentRoom.disconnect();
                 currentRoom = null;
             }
+            document.getElementById('roomNameDisplay').textContent = '';
             document.getElementById('roomSelectionSection').classList.remove('hidden');
             document.getElementById('videoContainer').innerHTML = '';
             showMessage('roomMessage', 'Left the room', 'success');
