@@ -24,8 +24,8 @@
             border-radius: 12px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
             overflow: hidden;
-            width: 90%;
-            max-width: 500px;
+            width: 100%;
+            max-width: 800px;
         }
 
         .header {
@@ -130,17 +130,19 @@
             flex-wrap: wrap;
             gap: 1rem;
             margin-top: 1.5rem;
+            justify-content: center;
         }
 
         .participant-wrapper {
             position: relative;
             display: inline-block;
-            width: 250px;
-            height: 180px;
+            width: calc(50% - 1rem); 
+            height: 0;
             background: #000;
             border-radius: 8px;
             overflow: hidden;
             border: 2px solid #ddd;
+            padding-bottom: calc(40% - 1rem);
         }
 
         .participant-wrapper.local {
@@ -497,6 +499,35 @@
             showMessage('roomMessage', 'Mock connection successful!', 'success');
 
             console.log('Mock room joined!');
+            setTimeout(() => {
+                    mockAddRemoteParticipants(4);
+                }, 2000); // 2-second delay
+        }
+
+        function mockAddRemoteParticipants(count) {
+            for (let i = 1; i <= count; i++) {
+                // Create a mock participant object with a unique identifier
+                const mockRemoteParticipant = {
+                    identity: `RemoteUser${i}`,
+                    sid: `mock-sid-${i + 1}`, // Ensure unique SID
+                };
+                
+                // Create a mock video track for the remote participant
+                const mockRemoteVideoTrack = {
+                    kind: 'video',
+                    attach: (el) => {
+                        console.log(`Mock remote video for ${mockRemoteParticipant.identity} attached`);
+                        const placeholder = document.createElement('div');
+                        placeholder.textContent = `Simulated Remote Video ${i}`;
+                        el.appendChild(placeholder);
+                    }
+                };
+                
+                // Call your existing handleTrack function to display the video
+                handleTrack(mockRemoteVideoTrack, mockRemoteParticipant, false);
+                
+                console.log(`Simulated remote participant ${i} joined!`);
+            }
         }
 
         async function joinRoom() {
