@@ -47,6 +47,10 @@
             display: block;
         }
 
+        .hidden {
+            display: none;
+        }
+
         .form-group {
             margin-bottom: 1.5rem;
         }
@@ -214,7 +218,6 @@
     <div class="container">
         <div class="header">
             <h1>🎥 Secure Video Rooms</h1>
-            <p>LiveKit with Authentication</p>
         </div>
 
         <div class="content">
@@ -225,7 +228,6 @@
                     <div class="form-group">
                         <label for="username">Username:</label>
                         <input type="text" id="username" name="username" required />
-                        <small>Try: admin, user1, or guest</small>
                     </div>
 
                     <div class="form-group">
@@ -247,7 +249,7 @@
 
                 <div id="roomMessage"></div>
 
-                <div class="form-group">
+                <div id="roomSelectionSection" class="form-group">
                     <label for="roomSelect">Select Room:</label>
                     <select id="roomSelect">
                         <option value="">Loading rooms...</option>
@@ -256,7 +258,7 @@
 
                 <div class="room-controls">
                     <button id="joinBtn">Join Room</button>
-                    <button id="createRoomBtn" style="display: none;">Create Room</button>
+                    <!-- <button id="createRoomBtn" style="display: none;">Create Room</button> -->
                     <button id="debugBtn" type="button" onclick="debugParticipants()">Debug</button>
                 </div>
 
@@ -274,6 +276,36 @@
         let joined = false;
 
         checkAuthStatus();
+        // mockLogin();
+
+        function mockLogin() {
+            // Create a fake user object
+            const mockUser = {
+                name: 'Dev User',
+                permissions: ['join_room', 'leave_room']
+            };
+            currentUser = mockUser;
+            showRoomInterface();
+
+            // Mock the available rooms
+            const rooms = [
+                { name: 'general', display_name: 'General Room' },
+                { name: 'support', display_name: 'Support Channel' }
+            ];
+            mockLoadRooms(rooms);
+        }
+
+        function mockLoadRooms(rooms) {
+            const roomSelect = document.getElementById('roomSelect');
+            roomSelect.innerHTML = '<option value="">Select a room...</option>';
+            rooms.forEach(room => {
+                const option = document.createElement('option');
+                option.value = room.name;
+                option.textContent = room.display_name;
+                roomSelect.appendChild(option);
+            });
+            // document.getElementById('createRoomBtn').style.display = 'block';
+        }
 
         async function checkAuthStatus() {
             try {
@@ -384,11 +416,17 @@
             }
         }
 
+        const useMockMode = true; 
+
         const joinBtn = document.getElementById('joinBtn');
         joinBtn.addEventListener('click', async () => {
+            console.info('trying...')
             joinBtn.disabled = true;
 
             if (!joined) {
+                if (useMockMode) {
+                    mockJoinRoom();
+                } else {
                 try {
                     await joinRoom();
                     joined = true;
@@ -396,6 +434,7 @@
                     console.error('Error joining room:', e);
                     showMessage('roomMessage', e.message || 'Error joining room', 'error');
                 }
+            }
             } else {
                 leaveRoom();
                 joined = false;
@@ -407,6 +446,49 @@
 
         function updateJoinButtonState() {
             joinBtn.textContent = joined ? 'Leave Room' : 'Join Room';
+        }
+
+        function mockJoinRoom() {
+    // Create a fake room object with essential properties
+            currentRoom = {
+                localParticipant: {
+                    identity: currentUser.name,
+                    audioTracks: new Map([['mockAudioTrack', { track: { isEnabled: () => true } }]]),
+                    publishTrack: (track) => {
+                        console.log(`Mock Published local track: ${track.kind}`);
+                        handleTrack(track, currentRoom.localParticipant, true);
+                        return Promise.resolve();
+                    }
+                },
+                participants: new Map(),
+                on: (event, handler) => {
+                    console.log(`Mock Room Event: ${event} registered`);
+                },
+                disconnect: () => {
+                    console.log('Mock Disconnect');
+                }
+            };
+            document.getElementById('roomSelectionSection').classList.add('hidden');
+            // Simulate publishing local video and audio tracks
+            const mockVideoTrack = { kind: 'video', attach: (el) => {
+                console.log('Mock video attached');
+                // This is where a real video would be rendered. For simulation, a placeholder works.
+                const placeholder = document.createElement('div');
+                placeholder.textContent = 'Simulated Video';
+                el.appendChild(placeholder);
+            } };
+            const mockAudioTrack = { kind: 'audio' };
+
+            // Handle the mock tracks
+            handleTrack(mockVideoTrack, currentRoom.localParticipant, true);
+            handleTrack(mockAudioTrack, currentRoom.localParticipant, true);
+
+            // Update UI state
+            joined = true;
+            updateJoinButtonState();
+            showMessage('roomMessage', 'Mock connection successful!', 'success');
+
+            console.log('Mock room joined!');
         }
 
         async function joinRoom() {
@@ -730,6 +812,7 @@
                 currentRoom.disconnect();
                 currentRoom = null;
             }
+            document.getElementById('roomSelectionSection').classList.remove('hidden');
             document.getElementById('videoContainer').innerHTML = '';
             showMessage('roomMessage', 'Left the room', 'success');
         }
