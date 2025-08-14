@@ -404,9 +404,6 @@
                         roomSelect.appendChild(option);
                     });
 
-                    if (currentUser.permissions.includes('create_room')) {
-                        document.getElementById('createRoomBtn').style.display = 'block';
-                    }
                 } else {
                     showMessage('roomMessage', data.error || 'Failed to load rooms', 'error');
                 }
