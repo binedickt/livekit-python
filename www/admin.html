@@ -143,6 +143,18 @@
             font-weight: 500;
             color: #333;
         }
+
+        .list-group {
+            margin-top: 1rem;
+        }
+
+        .list-item {
+            padding: 0.5rem;
+            background: #fff;
+            border: 1px solid #e1e5e9;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -182,10 +194,22 @@
                             Manage Users
                         </button>
                         <button
+                            className={`tab-button ${activeTab === 'user-list' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('user-list')}
+                        >
+                            List Users
+                        </button>
+                        <button
                             className={`tab-button ${activeTab === 'rooms' ? 'active' : ''}`}
                             onClick={() => setActiveTab('rooms')}
                         >
                             Manage Rooms
+                        </button>
+                        <button
+                            className={`tab-button ${activeTab === 'room-list' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('room-list')}
+                        >
+                            List Rooms
                         </button>
                         <button
                             className={`tab-button ${activeTab === 'token' ? 'active' : ''}`}
@@ -199,7 +223,9 @@
                     {success && <div className="success">{success}</div>}
 
                     {activeTab === 'users' && <UserManagement showMessage={showMessage} />}
+                    {activeTab === 'user-list' && <UserList showMessage={showMessage} />}
                     {activeTab === 'rooms' && <RoomManagement showMessage={showMessage} />}
+                    {activeTab === 'room-list' && <RoomList showMessage={showMessage} />}
                     {activeTab === 'token' && <TokenGenerator showMessage={showMessage} />}
                 </div>
             );
@@ -338,6 +364,41 @@
             );
         };
 
+        const UserList = ({ showMessage }) => {
+            const [users, setUsers] = useState([]);
+
+            useEffect(() => {
+                const fetchUsers = async () => {
+                    try {
+                        const response = await axios.get('/users', { withCredentials: true });
+                        setUsers(response.data.users || []);
+                    } catch (error) {
+                        showMessage('Error fetching users', true);
+                    }
+                };
+                fetchUsers();
+            }, []);
+
+            return (
+                <div className="section">
+                    <h2>Users List</h2>
+                    <div className="list-group">
+                        {users.length === 0 ? (
+                            <p>No users found.</p>
+                        ) : (
+                            users.map((user, index) => (
+                                <div key={index} className="list-item">
+                                    <strong>Username:</strong> {user.username}<br />
+                                    <strong>Name:</strong> {user.name}<br />
+                                    <strong>Permissions:</strong> {user.permissions.join(', ')}
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
         const RoomManagement = ({ showMessage }) => {
             const [roomName, setRoomName] = useState('');
             const [allowedUsers, setAllowedUsers] = useState('');
@@ -445,6 +506,40 @@
                             />
                         </div>
                         <button onClick={updateRoomAllowedUsers}>Update Allowed Users</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const RoomList = ({ showMessage }) => {
+            const [rooms, setRooms] = useState([]);
+
+            useEffect(() => {
+                const fetchRooms = async () => {
+                    try {
+                        const response = await axios.get('/rooms', { withCredentials: true });
+                        setRooms(response.data.rooms || []);
+                    } catch (error) {
+                        showMessage('Error fetching rooms', true);
+                    }
+                };
+                fetchRooms();
+            }, []);
+
+            return (
+                <div className="section">
+                    <h2>Rooms List</h2>
+                    <div className="list-group">
+                        {rooms.length === 0 ? (
+                            <p>No rooms found.</p>
+                        ) : (
+                            rooms.map((room, index) => (
+                                <div key={index} className="list-item">
+                                    <strong>Room Name:</strong> {room.room_name}<br />
+                                    <strong>Allowed Users:</strong> {room.allowed_users.join(', ') || 'None'}
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
             );
