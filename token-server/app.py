@@ -3,7 +3,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-from fastapi import FastAPI, HTTPException, Query, Depends, status, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Depends, status, Request, Response, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
