@@ -1,6 +1,23 @@
 version: "3.8"
 
 services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=livekit
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - livekit
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   redis:
     image: redis:7
     restart: unless-stopped
@@ -52,11 +69,14 @@ services:
     depends_on:
       livekit:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     environment:
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
-      - LIVEKIT_URL=${LIVEKIT_URL}  # Use internal URL
+      - LIVEKIT_URL=${LIVEKIT_URL}
       - JWT_SECRET=${JWT_SECRET}
+      - DATABASE_URL=postgresql://user:password@postgres:5432/livekit
     ports:
       - "8000:8000"
     networks:
@@ -86,5 +106,6 @@ networks:
     driver: bridge
 
 volumes:
+  postgres_data:
   caddy_data:
   caddy_config:

@@ -3,13 +3,14 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-
 from fastapi import FastAPI, HTTPException, Query, Depends, status, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from livekit import api
 import jwt
+import asyncpg
+from contextlib import asynccontextmanager
 
 app = FastAPI(title="LiveKit Secure Token Server", version="1.0.0")
 
@@ -27,9 +28,40 @@ API_KEY = os.getenv("LIVEKIT_API_KEY")
 API_SECRET = os.getenv("LIVEKIT_API_SECRET")
 JWT_SECRET = os.getenv("JWT_SECRET", secrets.token_hex(32))
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "ws://livekit:7880")
+DB_URL = os.getenv("DATABASE_URL", "postgresql://user:password@postgres:5432/livekit")
 
 if not API_KEY or not API_SECRET:
     raise RuntimeError("LIVEKIT_API_KEY and LIVEKIT_API_SECRET must be set")
+
+# Database connection pool
+async def init_db():
+    app.state.db_pool = await asyncpg.create_pool(DB_URL)
+    async with app.state.db_pool.acquire() as conn:
+        # Create tables if they don't exist
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                username VARCHAR(50) PRIMARY KEY,
+                password_hash TEXT NOT NULL,
+                name TEXT NOT NULL,
+                permissions TEXT[] NOT NULL
+            )
+        ''')
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS rooms (
+                room_name VARCHAR(100) PRIMARY KEY,
+                allowed_users TEXT[] NOT NULL
+            )
+        ''')
+
+@asynccontextmanager
+async def get_db():
+    async with app.state.db_pool.acquire() as conn:
+        yield conn
+
+# Initialize database on startup
+@app.on_event("startup")
+async def startup_event():
+    await init_db()
 
 # Security
 security = HTTPBearer(auto_error=False)
@@ -52,6 +84,7 @@ class UserResponse(BaseModel):
 class RoomInfo(BaseModel):
     name: str
     display_name: str
+    allowed_users: List[str]
 
 class TokenResponse(BaseModel):
     token: str
@@ -63,37 +96,14 @@ class CreateRoomRequest(BaseModel):
     room_name: str
     allowed_users: List[str] = []
 
-# In-memory user store (replace with database in production)
-USERS = {
-    'admin': {
-        'password_hash': hashlib.sha256('admin123madin'.encode()).hexdigest(),
-        'permissions': ['join_any_room', 'create_room', 'moderate'],
-        'name': 'Admin User'
-    },
-    'user1': {
-        'password_hash': hashlib.sha256('password123'.encode()).hexdigest(),
-        'permissions': ['join_room'],
-        'name': 'Regular User'
-    },
-    'guest': {
-        'password_hash': hashlib.sha256('guest123'.encode()).hexdigest(),
-        'permissions': ['join_room'],
-        'name': 'Guest User'
-    },
-    'mama': {
-        'password_hash': hashlib.sha256('Marina#08'.encode()).hexdigest(),
-        'permissions': ['join_room'],
-        'name': 'Mama'
-    }
-}
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+    name: str
+    permissions: List[str] = []
 
-# Room permissions (who can join which rooms)
-ROOM_PERMISSIONS = {
-    'public-room': ['*'],  # Anyone can join
-    'private-room': ['admin', 'user1'],  # Only specific users
-    'admin-room': ['admin'],  # Admin only,
-    'family': ['admin', 'mama']
-}
+class UpdatePermissionsRequest(BaseModel):
+    permissions: List[str]
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
@@ -126,19 +136,11 @@ async def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> dict:
-    """
-    Get current user from JWT token (Bearer) or session cookie
-    """
     token = None
-    
-    # Try to get token from Authorization header
     if credentials:
         token = credentials.credentials
-    
-    # Try to get token from cookie as fallback
     if not token:
         token = request.cookies.get("access_token")
-    
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -148,55 +150,51 @@ async def get_current_user(
     payload = verify_token(token)
     username = payload.get("sub")
     
-    if not username or username not in USERS:
+    async with get_db() as conn:
+        user = await conn.fetchrow(
+            'SELECT username, name, permissions FROM users WHERE username = $1',
+            username
+        )
+    
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid user"
         )
     
-    user_data = USERS[username]
     return {
-        "username": username,
-        "name": user_data["name"],
-        "permissions": user_data["permissions"]
+        "username": user["username"],
+        "name": user["name"],
+        "permissions": user["permissions"]
     }
 
 @app.post("/login", response_model=LoginResponse)
 async def login(login_data: LoginRequest, response: Response):
-    """
-    Authenticate user and return JWT token
-    """
-    username = login_data.username
-    password = login_data.password
-    
-    if not username or not password:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username and password required"
+    async with get_db() as conn:
+        user = await conn.fetchrow(
+            'SELECT username, password_hash, name, permissions FROM users WHERE username = $1',
+            login_data.username
         )
     
-    user = USERS.get(username)
-    if not user or not verify_password(password, user['password_hash']):
+    if not user or not verify_password(login_data.password, user['password_hash']):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
         )
     
-    # Create JWT token
     token_data = {
-        "sub": username,
+        "sub": user["username"],
         "name": user["name"],
         "permissions": user["permissions"],
         "iat": datetime.utcnow()
     }
     access_token = create_access_token(token_data)
     
-    # Set cookie for browser compatibility
     response.set_cookie(
-        key="access_token", 
-        value=access_token, 
-        httponly=True, 
-        max_age=86400,  # 24 hours
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        max_age=86400,
         samesite="lax"
     )
     
@@ -204,7 +202,7 @@ async def login(login_data: LoginRequest, response: Response):
         success=True,
         access_token=access_token,
         user={
-            "username": username,
+            "username": user["username"],
             "name": user["name"],
             "permissions": user["permissions"]
         }
@@ -212,37 +210,30 @@ async def login(login_data: LoginRequest, response: Response):
 
 @app.post("/logout")
 async def logout(response: Response):
-    """
-    Logout user by clearing the cookie
-    """
     response.delete_cookie(key="access_token")
     return {"success": True}
 
 @app.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: dict = Depends(get_current_user)):
-    """
-    Get current authenticated user information
-    """
     return UserResponse(**current_user)
 
 @app.get("/rooms")
 async def get_available_rooms(current_user: dict = Depends(get_current_user)):
-    """
-    Get list of rooms the current user can access
-    """
     username = current_user["username"]
     permissions = current_user["permissions"]
     
-    available_rooms = []
+    async with get_db() as conn:
+        rooms = await conn.fetch('SELECT room_name, allowed_users FROM rooms')
     
-    for room_name, allowed_users in ROOM_PERMISSIONS.items():
-        # Check if user can join this room
-        if ('*' in allowed_users or 
-            username in allowed_users or 
+    available_rooms = []
+    for room in rooms:
+        if ('*' in room['allowed_users'] or 
+            username in room['allowed_users'] or 
             'join_any_room' in permissions):
             available_rooms.append(RoomInfo(
-                name=room_name,
-                display_name=room_name.replace('-', ' ').title()
+                name=room['room_name'],
+                display_name=room['room_name'].replace('-', ' ').title(),
+                allowed_users=room['allowed_users']
             ))
     
     return {"rooms": available_rooms}
@@ -254,15 +245,23 @@ async def get_token(
     ttl_seconds: int = Query(3600, description="Token lifetime in seconds"),
     current_user: dict = Depends(get_current_user)
 ):
-    """
-    Generate LiveKit access token for authenticated user
-    """
     user_username = current_user["username"]
     user_permissions = current_user["permissions"]
     participant_name = username or user_username
     
-    # Check room permissions
-    allowed_users = ROOM_PERMISSIONS.get(room, [])
+    async with get_db() as conn:
+        room_data = await conn.fetchrow(
+            'SELECT allowed_users FROM rooms WHERE room_name = $1',
+            room
+        )
+    
+    if not room_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Room not found: {room}"
+        )
+    
+    allowed_users = room_data['allowed_users']
     if not ('*' in allowed_users or 
             user_username in allowed_users or 
             'join_any_room' in user_permissions):
@@ -272,13 +271,11 @@ async def get_token(
         )
     
     try:
-        # Create token with appropriate permissions
         at = api.AccessToken(API_KEY, API_SECRET)
         at.with_ttl(timedelta(seconds=ttl_seconds))
         at.with_identity(participant_name)
         at.with_name(current_user["name"])
         
-        # Set up video grants
         grants = api.VideoGrants(
             room_join=True,
             room=room,
@@ -287,7 +284,6 @@ async def get_token(
             can_publish_data=True,
         )
         
-        # Add moderation permissions for admins
         if 'moderate' in user_permissions:
             grants.room_admin = True
             grants.can_update_own_metadata = True
@@ -301,7 +297,6 @@ async def get_token(
             room=room,
             participant=participant_name
         )
-        
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -313,9 +308,6 @@ async def create_room(
     room_data: CreateRoomRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """
-    Create a new room (admin only)
-    """
     if 'create_room' not in current_user["permissions"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -331,8 +323,17 @@ async def create_room(
             detail="Room name required"
         )
     
-    # Add room to permissions (in production, save to database)
-    ROOM_PERMISSIONS[room_name] = allowed_users
+    async with get_db() as conn:
+        try:
+            await conn.execute(
+                'INSERT INTO rooms (room_name, allowed_users) VALUES ($1, $2)',
+                room_name, allowed_users
+            )
+        except asyncpg.exceptions.UniqueViolationError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Room already exists"
+            )
     
     return {
         "success": True,
@@ -340,24 +341,151 @@ async def create_room(
         "allowed_users": allowed_users
     }
 
+@app.post("/users")
+async def create_user(
+    user_data: CreateUserRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    if 'create_user' not in current_user["permissions"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied: cannot create users"
+        )
+    
+    async with get_db() as conn:
+        try:
+            await conn.execute(
+                '''
+                INSERT INTO users (username, password_hash, name, permissions)
+                VALUES ($1, $2, $3, $4)
+                ''',
+                user_data.username,
+                hash_password(user_data.password),
+                user_data.name,
+                user_data.permissions
+            )
+        except asyncpg.exceptions.UniqueViolationError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already exists"
+            )
+    
+    return {"success": True, "username": user_data.username}
+
+@app.delete("/users/{username}")
+async def delete_user(
+    username: str,
+    current_user: dict = Depends(get_current_user)
+):
+    if 'delete_user' not in current_user["permissions"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied: cannot delete users"
+        )
+    
+    async with get_db() as conn:
+        result = await conn.execute(
+            'DELETE FROM users WHERE username = $1',
+            username
+        )
+    
+    if result == "DELETE 0":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    return {"success": True}
+
+@app.delete("/rooms/{room_name}")
+async def delete_room(
+    room_name: str,
+    current_user: dict = Depends(get_current_user)
+):
+    if 'delete_room' not in current_user["permissions"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied: cannot delete rooms"
+        )
+    
+    async with get_db() as conn:
+        result = await conn.execute(
+            'DELETE FROM rooms WHERE room_name = $1',
+            room_name
+        )
+    
+    if result == "DELETE 0":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found"
+        )
+    
+    return {"success": True}
+
+@app.put("/users/{username}/permissions")
+async def update_user_permissions(
+    username: str,
+    permissions_data: UpdatePermissionsRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    if 'manage_permissions' not in current_user["permissions"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied: cannot manage permissions"
+        )
+    
+    async with get_db() as conn:
+        result = await conn.execute(
+            'UPDATE users SET permissions = $1 WHERE username = $2',
+            permissions_data.permissions,
+            username
+        )
+    
+    if result == "UPDATE 0":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    return {"success": True, "username": username}
+
+@app.put("/rooms/{room_name}/allowed-users")
+async def update_room_allowed_users(
+    room_name: str,
+    allowed_users: List[str] = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
+    if 'manage_permissions' not in current_user["permissions"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied: cannot manage room permissions"
+        )
+    
+    async with get_db() as conn:
+        result = await conn.execute(
+            'UPDATE rooms SET allowed_users = $1 WHERE room_name = $2',
+            allowed_users,
+            room_name
+        )
+    
+    if result == "UPDATE 0":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found"
+        )
+    
+    return {"success": True, "room_name": room_name}
+
 @app.get("/health")
 async def health_check():
-    """
-    Health check endpoint
-    """
     return {"status": "healthy", "service": "livekit-auth-server"}
 
-# Legacy endpoint for backwards compatibility
 @app.get("/token-legacy")
 async def get_token_legacy(
     room: str = Query(..., description="Room name"),
     username: str = Query(..., description="Participant name"),
     ttl_seconds: int = Query(60, description="Token lifetime in seconds")
 ):
-    """
-    Legacy token endpoint (no authentication - for testing only)
-    WARNING: This bypasses authentication! Remove in production.
-    """
     try:
         at = api.AccessToken(API_KEY, API_SECRET)
         at.with_ttl(timedelta(seconds=ttl_seconds))
