@@ -19,9 +19,9 @@ viken.stream:8443 {
         header_up X-Forwarded-Proto {http.request.scheme}
     }
 
-    # API endpoints (token server)
+    # API endpoints
     @api {
-        path /token* /login* /logout* /me* /rooms* /create-room* /health* /create-room* /users* /rooms*
+        path /token* /login* /logout* /me* /rooms* /create-room* /health* /users*
     }
     reverse_proxy @api token-server:8000 {
         header_up Host {http.request.host}
@@ -30,7 +30,7 @@ viken.stream:8443 {
         header_up X-Forwarded-Proto {http.request.scheme}
     }
 
-    # Static files (HTML, CSS, JS)
+    # Static files
     root * /srv/www
     file_server
 }
