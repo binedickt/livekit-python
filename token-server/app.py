@@ -28,7 +28,7 @@ API_KEY = os.getenv("LIVEKIT_API_KEY")
 API_SECRET = os.getenv("LIVEKIT_API_SECRET")
 JWT_SECRET = os.getenv("JWT_SECRET", secrets.token_hex(32))
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "ws://livekit:7880")
-DB_URL = os.getenv("DATABASE_URL", "postgresql://user:password@postgres:5432/livekit")
+DB_URL = os.getenv("DATABASE_URL")
 
 if not API_KEY or not API_SECRET:
     raise RuntimeError("LIVEKIT_API_KEY and LIVEKIT_API_SECRET must be set")
