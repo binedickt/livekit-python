@@ -535,7 +535,7 @@
                         ) : (
                             rooms.map((room, index) => (
                                 <div key={index} className="list-item">
-                                    <strong>Room Name:</strong> {room.room_name}<br />
+                                    <strong>Room Name:</strong> {room.display_name}<br />
                                     <strong>Allowed Users:</strong> {room.allowed_users.join(', ') || 'None'}
                                 </div>
                             ))
