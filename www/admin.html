@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiveKit Admin Panel</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/babel-standalone@7/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.7/dist/axios.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .header {
+            background: #333;
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .content {
+            padding: 2rem;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #c33;
+        }
+
+        .success {
+            background: #efe;
+            color: #363;
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #363;
+        }
+
+        input, button {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #5a6fd8;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border: 2px solid #e1e5e9;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .tab-button.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-button:hover {
+            background: #e1e5e9;
+        }
+
+        .tab-button.active:hover {
+            background: #5a6fd8;
+        }
+
+        .section {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #667eea;
+        }
+
+        .section h2 {
+            margin-bottom: 1rem;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>LiveKit Admin Panel</h1>
+        </div>
+        <div class="content">
+            <div id="root"></div>
+        </div>
+    </div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('users');
+            const [error, setError] = useState('');
+            const [success, setSuccess] = useState('');
+
+            const showMessage = (msg, isError = false) => {
+                if (isError) {
+                    setError(msg);
+                    setTimeout(() => setError(''), 3000);
+                } else {
+                    setSuccess(msg);
+                    setTimeout(() => setSuccess(''), 3000);
+                }
+            };
+
+            return (
+                <div>
+                    <div className="flex mb-4">
+                        <button
+                            className={`tab-button ${activeTab === 'users' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('users')}
+                        >
+                            Manage Users
+                        </button>
+                        <button
+                            className={`tab-button ${activeTab === 'rooms' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('rooms')}
+                        >
+                            Manage Rooms
+                        </button>
+                        <button
+                            className={`tab-button ${activeTab === 'token' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('token')}
+                        >
+                            Generate Token
+                        </button>
+                    </div>
+
+                    {error && <div className="error">{error}</div>}
+                    {success && <div className="success">{success}</div>}
+
+                    {activeTab === 'users' && <UserManagement showMessage={showMessage} />}
+                    {activeTab === 'rooms' && <RoomManagement showMessage={showMessage} />}
+                    {activeTab === 'token' && <TokenGenerator showMessage={showMessage} />}
+                </div>
+            );
+        };
+
+        const UserManagement = ({ showMessage }) => {
+            const [username, setUsername] = useState('');
+            const [password, setPassword] = useState('');
+            const [name, setName] = useState('');
+            const [permissions, setPermissions] = useState('');
+            const [deleteUsername, setDeleteUsername] = useState('');
+            const [updateUsername, setUpdateUsername] = useState('');
+            const [updatePermissions, setUpdatePermissions] = useState('');
+
+            const createUser = async () => {
+                try {
+                    const response = await axios.post('/users', {
+                        username,
+                        password,
+                        name,
+                        permissions: permissions.split(',').map(p => p.trim())
+                    }, { withCredentials: true });
+                    showMessage('User created successfully');
+                    setUsername(''); setPassword(''); setName(''); setPermissions('');
+                } catch (error) {
+                    showMessage(error.response?.data?.detail || 'Error creating user', true);
+                }
+            };
+
+            const deleteUser = async () => {
+                try {
+                    await axios.delete(`/users/${deleteUsername}`, { withCredentials: true });
+                    showMessage('User deleted successfully');
+                    setDeleteUsername('');
+                } catch (error) {
+                    showMessage(error.response?.data?.detail || 'Error deleting user', true);
+                }
+            };
+
+            const updateUserPermissions = async () => {
+                try {
+                    await axios.put(`/users/${updateUsername}/permissions`, {
+                        permissions: updatePermissions.split(',').map(p => p.trim())
+                    }, { withCredentials: true });
+                    showMessage('Permissions updated successfully');
+                    setUpdateUsername(''); setUpdatePermissions('');
+                } catch (error) {
+                    showMessage(error.response?.data?.detail || 'Error updating permissions', true);
+                }
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="section">
+                        <h2>Create User</h2>
+                        <div className="form-group">
+                            <label>Username</label>
+                            <input
+                                type="text"
+                                placeholder="Enter username"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Password</label>
+                            <input
+                                type="password"
+                                placeholder="Enter password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Name</label>
+                            <input
+                                type="text"
+                                placeholder="Enter name"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Permissions (comma-separated)</label>
+                            <input
+                                type="text"
+                                placeholder="e.g., create_user,delete_user"
+                                value={permissions}
+                                onChange={(e) => setPermissions(e.target.value)}
+                            />
+                        </div>
+                        <button onClick={createUser}>Create User</button>
+                    </div>
+
+                    <div className="section">
+                        <h2>Delete User</h2>
+                        <div className="form-group">
+                            <label>Username</label>
+                            <input
+                                type="text"
+                                placeholder="Enter username to delete"
+                                value={deleteUsername}
+                                onChange={(e) => setDeleteUsername(e.target.value)}
+                            />
+                        </div>
+                        <button onClick={deleteUser} style={{ background: '#c33' }}
+                                onMouseOver={(e) => e.target.style.background = '#b22'}
+                                onMouseOut={(e) => e.target.style.background = '#c33'}>
+                            Delete User
+                        </button>
+                    </div>
+
+                    <div className="section">
+                        <h2>Update User Permissions</h2>
+                        <div className="form-group">
+                            <label>Username</label>
+                            <input
+                                type="text"
+                                placeholder="Enter username"
+                                value={updateUsername}
+                                onChange={(e) => setUpdateUsername(e.target.value)}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>New Permissions (comma-separated)</label>
+                            <input
+                                type="text"
+                                placeholder="e.g., manage_permissions,create_room"
+                                value={updatePermissions}
+                                onChange={(e) => setUpdatePermissions(e.target.value)}
+                            />
+                        </div>
+                        <button onClick={updateUserPermissions}>Update Permissions</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const RoomManagement = ({ showMessage }) => {
+            const [roomName, setRoomName] = useState('');
+            const [allowedUsers, setAllowedUsers] = useState('');
+            const [deleteRoomName, setDeleteRoomName] = useState('');
+            const [updateRoomName, setUpdateRoomName] = useState('');
+            const [updateAllowedUsers, setUpdateAllowedUsers] = useState('');
+
+            const createRoom = async () => {
+                try {
+                    await axios.post('/create-room', {
+                        room_name: roomName,
+                        allowed_users: allowedUsers ? allowedUsers.split(',').map(u => u.trim()) : []
+                    }, { withCredentials: true });
+                    showMessage('Room created successfully');
+                    setRoomName(''); setAllowedUsers('');
+                } catch (error) {
+                    showMessage(error.response?.data?.detail || 'Error creating room', true);
+                }
+            };
+
+            const deleteRoom = async () => {
+                try {
+                    await axios.delete(`/rooms/${deleteRoomName}`, { withCredentials: true });
+                    showMessage('Room deleted successfully');
+                    setDeleteRoomName('');
+                } catch (error) {
+                    showMessage(error.response?.data?.detail || 'Error deleting room', true);
+                }
+            };
+
+            const updateRoomAllowedUsers = async () => {
+                try {
+                    await axios.put(`/rooms/${updateRoomName}/allowed-users`, 
+                        updateAllowedUsers.split(',').map(u => u.trim()),
+                        { withCredentials: true }
+                    );
+                    showMessage('Room permissions updated successfully');
+                    setUpdateRoomName(''); setUpdateAllowedUsers('');
+                } catch (error) {
+                    showMessage(error.response?.data?.detail || 'Error updating room permissions', true);
+                }
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="section">
+                        <h2>Create Room</h2>
+                        <div className="form-group">
+                            <label>Room Name</label>
+                            <input
+                                type="text"
+                                placeholder="Enter room name"
+                                value={roomName}
+                                onChange={(e) => setRoomName(e.target.value)}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Allowed Users (comma-separated)</label>
+                            <input
+                                type="text"
+                                placeholder="e.g., user1,user2"
+                                value={allowedUsers}
+                                onChange={(e) => setAllowedUsers(e.target.value)}
+                            />
+                        </div>
+                        <button onClick={createRoom}>Create Room</button>
+                    </div>
+
+                    <div className="section">
+                        <h2>Delete Room</h2>
+                        <div className="form-group">
+                            <label>Room Name</label>
+                            <input
+                                type="text"
+                                placeholder="Enter room name to delete"
+                                value={deleteRoomName}
+                                onChange={(e) => setDeleteRoomName(e.target.value)}
+                            />
+                        </div>
+                        <button onClick={deleteRoom} style={{ background: '#c33' }}
+                                onMouseOver={(e) => e.target.style.background = '#b22'}
+                                onMouseOut={(e) => e.target.style.background = '#c33'}>
+                            Delete Room
+                        </button>
+                    </div>
+
+                    <div className="section">
+                        <h2>Update Room Allowed Users</h2>
+                        <div className="form-group">
+                            <label>Room Name</label>
+                            <input
+                                type="text"
+                                placeholder="Enter room name"
+                                value={updateRoomName}
+                                onChange={(e) => setUpdateRoomName(e.target.value)}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>New Allowed Users (comma-separated)</label>
+                            <input
+                                type="text"
+                                placeholder="e.g., user1,user2"
+                                value={updateAllowedUsers}
+                                onChange={(e) => setUpdateAllowedUsers(e.target.value)}
+                            />
+                        </div>
+                        <button onClick={updateRoomAllowedUsers}>Update Allowed Users</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const TokenGenerator = ({ showMessage }) => {
+            const [room, setRoom] = useState('');
+            const [username, setUsername] = useState('');
+            const [ttlSeconds, setTtlSeconds] = useState(60);
+            const [token, setToken] = useState('');
+
+            const generateToken = async () => {
+                try {
+                    const response = await axios.get('/token-legacy', {
+                        params: { room, username, ttl_seconds: ttlSeconds },
+                        withCredentials: true
+                    });
+                    setToken(response.data.token);
+                    showMessage('Token generated successfully');
+                } catch (error) {
+                    showMessage(error.response?.data?.detail || 'Error generating token', true);
+                }
+            };
+
+            return (
+                <div className="section">
+                    <h2>Generate Token</h2>
+                    <div className="form-group">
+                        <label>Room Name</label>
+                        <input
+                            type="text"
+                            placeholder="Enter room name"
+                            value={room}
+                            onChange={(e) => setRoom(e.target.value)}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label>Username</label>
+                        <input
+                            type="text"
+                            placeholder="Enter username"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                        />
+                    </div>
+                    <div className="form-group">
+                        <label>TTL (seconds)</label>
+                        <input
+                            type="number"
+                            placeholder="Enter TTL in seconds"
+                            value={ttlSeconds}
+                            onChange={(e) => setTtlSeconds(e.target.value)}
+                        />
+                    </div>
+                    <button onClick={generateToken}>Generate Token</button>
+                    {token && (
+                        <div className="mt-4 p-4 bg-gray-100 rounded">
+                            <p className="font-semibold">Generated Token:</p>
+                            <p className="break-all">{token}</p>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
