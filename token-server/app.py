@@ -58,7 +58,7 @@ async def get_db():
     async with app.state.db_pool.acquire() as conn:
         yield conn
 
-# Initialize database on startup
+### Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
     await init_db()
