@@ -508,16 +508,6 @@ async def list_users():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching users: {str(e)}")
 
-@app.get("/rooms")
-async def list_rooms():
-    try:
-        async with get_db() as conn:
-            room_data = await conn.fetch('SELECT room_name, allowed_users FROM rooms')
-            rooms = [dict(row) for row in room_data]
-            return {"rooms": rooms}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching rooms: {str(e)}")
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
