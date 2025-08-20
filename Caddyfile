@@ -21,7 +21,7 @@ viken.stream:8443 {
 
     # API endpoints (token server)
     @api {
-        path /token* /login* /logout* /me* /rooms* /create-room* /health*
+        path /token* /login* /logout* /me* /rooms* /create-room* /health* /create-room* /users* /rooms*
     }
     reverse_proxy @api token-server:8000 {
         header_up Host {http.request.host}
