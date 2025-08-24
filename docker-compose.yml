@@ -79,6 +79,8 @@ services:
       - DATABASE_URL=postgresql://user:password@postgres:5432/livekit
     ports:
       - "8000:8000"
+    volumes:
+      - ./srv/www:/srv/www
     networks:
       - livekit
     restart: unless-stopped
