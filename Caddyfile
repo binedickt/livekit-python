@@ -15,8 +15,6 @@ viken.stream:8443 {
         header_up Connection upgrade
         header_up Host {http.request.host}
         header_up X-Real-IP {http.request.remote}
-        header_up X-Forwarded-For {http.request.remote}
-        header_up X-Forwarded-Proto {http.request.scheme}
     }
 
     # API endpoints
@@ -26,8 +24,6 @@ viken.stream:8443 {
     reverse_proxy @api token-server:8000 {
         header_up Host {http.request.host}
         header_up X-Real-IP {http.request.remote}
-        header_up X-Forwarded-For {http.request.remote}
-        header_up X-Forwarded-Proto {http.request.scheme}
     }
 
     # Admin panel route
@@ -37,8 +33,6 @@ viken.stream:8443 {
     reverse_proxy @admin token-server:8000 {
         header_up Host {http.request.host}
         header_up X-Real-IP {http.request.remote}
-        header_up X-Forwarded-For {http.request.remote}
-        header_up X-Forwarded-Proto {http.request.scheme}
     }
 
     # Block direct access to admin.html
@@ -49,9 +43,7 @@ viken.stream:8443 {
         body "Access forbidden"
     }
 
-    # Static files (excluding admin.html)
+    # Serve static files (excluding admin.html via separate block)
     root * /srv/www
-    file_server {
-        except /admin.html
-    }
+    file_server
 }
