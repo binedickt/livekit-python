@@ -26,26 +26,24 @@ viken.stream:8443 {
         header_up X-Real-IP {http.request.remote}
     }
 
-    # Admin panel route
-    @admin {
-        path /admin
+    # Admin panel – protect /admin and /admin.html
+    @adminPath {
+        path /admin /admin/*
     }
-    reverse_proxy @admin token-server:8000 {
+    reverse_proxy @adminPath token-server:8000 {
         header_up Host {http.request.host}
         header_up X-Real-IP {http.request.remote}
     }
 
-    # Define the matcher for blocking direct access to admin.html
-    @blockAdmin {
+    @adminHtml {
         path /admin.html
     }
-
-    # Block direct access to admin.html
-    respond @blockAdmin 403 {
-        body "Access forbidden(Cad)"
+    reverse_proxy @adminHtml token-server:8000 {
+        header_up Host {http.request.host}
+        header_up X-Real-IP {http.request.remote}
     }
 
-    # Serve static files
+    # Serve static files for everything else
     root * /srv/www
     file_server
 }
