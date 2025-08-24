@@ -6,3 +6,4 @@ PyJWT==2.8.0
 livekit-api==0.5.0
 pydantic==2.4.2
 asyncpg==0.30.0
+Jinja2==3.1.5
