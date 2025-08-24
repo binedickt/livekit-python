@@ -42,7 +42,7 @@ viken.stream:8443 {
 
     # Block direct access to admin.html
     respond @blockAdmin 403 {
-        body "Access forbidden"
+        body "Access forbidden(Cad)"
     }
 
     # Serve static files
