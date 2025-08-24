@@ -44,6 +44,6 @@ viken.stream:8443 {
     }
 
     # Serve static files (excluding admin.html via separate block)
-    root * /srv/www
+    root * /www
     file_server
 }

@@ -17,7 +17,7 @@ from contextlib import asynccontextmanager
 app = FastAPI(title="LiveKit Secure Token Server", version="1.0.0")
 
 # Jinja2 templates for serving admin.html
-templates = Jinja2Templates(directory="/srv/www")
+templates = Jinja2Templates(directory="/www")
 
 # CORS middleware
 app.add_middleware(
