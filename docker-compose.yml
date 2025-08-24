@@ -80,7 +80,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./srv/www:/srv/www
+      - ./www:/srv/www
     networks:
       - livekit
     restart: unless-stopped
