@@ -6,6 +6,8 @@ from typing import Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Query, Depends, status, Request, Response, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from livekit import api
 import jwt
@@ -14,10 +16,13 @@ from contextlib import asynccontextmanager
 
 app = FastAPI(title="LiveKit Secure Token Server", version="1.0.0")
 
+# Jinja2 templates for serving admin.html
+templates = Jinja2Templates(directory="/srv/www")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your domain
+    allow_origins=["https://viken.stream:8443"],  # Restrict to your domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -168,6 +173,29 @@ async def get_current_user(
         "permissions": user["permissions"]
     }
 
+# Middleware to enforce admin access for admin panel
+@app.middleware("http")
+async def admin_auth_middleware(request: Request, call_next):
+    if request.url.path == "/admin":
+        token = request.cookies.get("access_token")
+        if not token:
+            return Response(content="Unauthorized", status_code=401)
+        payload = verify_token(token)
+        username = payload.get("sub")
+        async with get_db() as conn:
+            user = await conn.fetchrow(
+                'SELECT permissions FROM users WHERE username = $1',
+                username
+            )
+        if not user or "manage_permissions" not in user["permissions"]:
+            return Response(content="Forbidden: Admin access required", status_code=403)
+    response = await call_next(request)
+    return response
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_panel(request: Request, current_user: dict = Depends(get_current_user)):
+    return templates.TemplateResponse("admin.html", {"request": request})
+
 @app.post("/login", response_model=LoginResponse)
 async def login(login_data: LoginRequest, response: Response):
     async with get_db() as conn:
@@ -195,7 +223,8 @@ async def login(login_data: LoginRequest, response: Response):
         value=access_token,
         httponly=True,
         max_age=86400,
-        samesite="lax"
+        samesite="lax",
+        secure=True  # Ensure this is set if using HTTPS
     )
     
     return LoginResponse(
@@ -499,7 +528,7 @@ async def get_token_legacy(
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.get("/users")
-async def list_users():
+async def list_users(current_user: dict = Depends(get_current_user)):
     try:
         async with get_db() as conn:
             user_data = await conn.fetch('SELECT username, name, permissions FROM users')

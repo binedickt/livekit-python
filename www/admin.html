@@ -184,6 +184,21 @@
                 }
             };
 
+            // Check authentication on mount
+            useEffect(() => {
+                const checkAuth = async () => {
+                    try {
+                        const response = await axios.get('/me', { withCredentials: true });
+                        if (!response.data.permissions || !response.data.permissions.includes('manage_permissions')) {
+                            window.location.href = '/login'; // Redirect to login page
+                        }
+                    } catch (error) {
+                        window.location.href = '/login'; // Redirect on error
+                    }
+                };
+                checkAuth();
+            }, []);
+
             return (
                 <div>
                     <div className="flex mb-4">
