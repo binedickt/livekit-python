@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from fastapi import FastAPI, HTTPException, Query, Depends, status, Request, Response, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from livekit import api
@@ -193,8 +193,14 @@ async def admin_auth_middleware(request: Request, call_next):
     return response
 
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_panel(request: Request, current_user: dict = Depends(get_current_user)):
-    return RedirectResponse(url="/admin.html", status_code=307)
+async def admin_panel(current_user: dict = Depends(get_current_user)):
+    permissions = current_user.get("permissions", [])
+    if "manage_permissions" not in permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Admin access required"
+        )
+    return FileResponse("/srv/www/admin.html")
 
 @app.post("/login", response_model=LoginResponse)
 async def login(login_data: LoginRequest, response: Response):
