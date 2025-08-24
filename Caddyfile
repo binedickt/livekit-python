@@ -35,15 +35,13 @@ viken.stream:8443 {
         header_up X-Real-IP {http.request.remote}
     }
 
-    # Block direct access to admin.html
-    @blockAdmin {
-        path /admin.html
-    }
-    respond @blockAdmin 403 {
-        body "Access forbidden"
-    }
-
-    # Serve static files (excluding admin.html via separate block)
+    # Serve static files, but block direct access to admin.html
     root * /srv/www
-    file_server
+    file_server {
+        # Do not serve admin.html directly
+        @blockAdmin path /admin.html
+        respond @blockAdmin 403 {
+            body "Access forbidden"
+        }
+    }
 }
