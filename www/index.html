@@ -259,7 +259,7 @@
                     <p>Permissions: <span id="userPermissions"></span></p>
                     <div class="flex gap-2">
                         <button onclick="logout()" style="width: auto; padding: 0.5rem 1rem; margin-top: 0.5rem;">Logout</button>
-                        <button id="adminPanelBtn" onclick="window.location.href='admin.html'" style="width: auto; padding: 0.5rem 1rem; margin-top: 0.5rem; display: none;">Admin Panel</button>
+                        <button id="adminPanelBtn" onclick="window.location.href='/admin'" style="width: auto; padding: 0.5rem 1rem; margin-top: 0.5rem; display: none;">Admin Panel</button>
                     </div>
                 </div>
 
@@ -817,7 +817,6 @@
             }
             console.log('=== 🐛 PARTICIPANT DEBUG ===');
             console.log(`Total participants: ${currentRoom.participants.size + 1} (including local)`);
-            console.log(`Local participant: ${currentRoom.localParticipant.identity || 'unnamed'}`);
             let debugText = `Participants: ${currentRoom.participants.size + 1}\nLocal: ${currentRoom.localParticipant.identity || 'unnamed'}\n\n`;
             currentRoom.participants.forEach((participant, index) => {
                 console.log(`Remote participant ${index + 1}: ${participant.identity}, SID: ${participant.sid}`);
