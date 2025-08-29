@@ -562,9 +562,6 @@
                     autoSubscribe: true
                 });
 
-                // Log ICE servers for debugging
-                console.log('ICE servers:', currentRoom.getConfiguration()?.iceServers || 'Not set (using server defaults)');
-
                 // Add connection error listeners
                 currentRoom.on(window.LivekitClient.RoomEvent.ConnectionStateChanged, (state) => {
                     console.log('Connection state changed:', state);
@@ -578,6 +575,15 @@
                     showMessage('roomMessage', `Connection failed: ${error.message || 'Unknown error'}`, 'error');
                 });
 
+                // Log ICE candidate events for debugging
+                currentRoom.on(window.LivekitClient.RoomEvent.LocalTrackPublished, (publication) => {
+                    console.log('Local track published:', publication.kind, 'SID:', publication.trackSid);
+                });
+
+                currentRoom.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    console.log('Track subscribed:', track.kind, 'from:', participant.identity, 'SID:', publication.trackSid);
+                });
+
                 setupRoomEventListeners();
 
                 // Attempt to connect with retries
@@ -588,6 +594,10 @@
                         console.log(`Connection attempt ${attempt}/${retries} to ${data.url}`);
                         await currentRoom.connect(data.url, data.token);
                         console.log('Connected to room:', roomName);
+                        // Log ICE candidates for debugging
+                        currentRoom.localParticipant.on('icecandidate', (candidate) => {
+                            console.log('Local ICE candidate:', candidate);
+                        });
                         break; // Success, exit retry loop
                     } catch (error) {
                         console.error(`Attempt ${attempt} failed:`, error);
