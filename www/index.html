@@ -540,50 +540,97 @@
             if (!roomName) throw new Error('Please select a room');
 
             document.getElementById('videoContainer').innerHTML = '';
-
-            const response = await fetch(`/token?room=${encodeURIComponent(roomName)}`, { credentials: 'include' });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Failed to get access token');
-
-            currentRoom = new window.LivekitClient.Room({
-                adaptiveStream: true,
-                dynacast: true,
-                autoSubscribe: true
-            });
-
-            setupRoomEventListeners();
-            await currentRoom.connect(data.url, data.token);
-            console.log('Connected to room:', roomName);
-            document.getElementById('roomSelectionSection').classList.add('hidden');
-            document.getElementById('roomNameDisplay').textContent = `Room: ${roomName}`;
-            handleExistingParticipants();
+            const joinBtn = document.getElementById('joinBtn');
+            joinBtn.textContent = 'Joining...';
 
             try {
-                const localTracks = await window.LivekitClient.createLocalTracks({
-                    audio: true,
-                    video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
-                }).catch(error => {
-                    console.warn('Failed to access camera/microphone:', error);
-                    showMessage('roomMessage', 'No camera or microphone available. Joining without media.', 'success');
-                    return []; // Return empty array to proceed without tracks
+                // Fetch token
+                const response = await fetch(`/token?room=${encodeURIComponent(roomName)}`, { credentials: 'include' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Failed to get access token');
+
+                console.log('Token fetched:', { url: data.url, token: data.token.substring(0, 10) + '...' }); // Log partial token for security
+
+                // Verify server reachability
+                try {
+                    const ws = new WebSocket(data.url);
+                    await new Promise((resolve, reject) => {
+                        ws.onopen = () => {
+                            console.log('WebSocket connection to server successful');
+                            ws.close();
+                            resolve();
+                        };
+                        ws.onerror = () => reject(new Error('Failed to connect to WebSocket server'));
+                        ws.onclose = () => reject(new Error('WebSocket connection closed unexpectedly'));
+                        setTimeout(() => reject(new Error('WebSocket connection timeout')), 5000);
+                    });
+                } catch (error) {
+                    console.error('Server reachability check failed:', error);
+                    throw new Error('Cannot reach the LiveKit server. Please check your network or server configuration.');
+                }
+
+                // Initialize room
+                currentRoom = new window.LivekitClient.Room({
+                    adaptiveStream: true,
+                    dynacast: true,
+                    autoSubscribe: true
                 });
 
-                for (const track of localTracks) {
-                    await currentRoom.localParticipant.publishTrack(track);
-                    console.log('Published local track:', track.kind);
-                    handleTrack(track, currentRoom.localParticipant, true);
+                // Add connection error listener
+                currentRoom.on(window.LivekitClient.RoomEvent.ConnectionStateChanged, (state) => {
+                    console.log('Connection state changed:', state);
+                    if (state === 'disconnected') {
+                        showMessage('roomMessage', 'Disconnected from room. Please try again.', 'error');
+                    }
+                });
+
+                setupRoomEventListeners();
+                try {
+                    await currentRoom.connect(data.url, data.token);
+                    console.log('Connected to room:', roomName);
+                } catch (error) {
+                    console.error('Room connection failed:', error);
+                    throw new Error(`Failed to connect to room: ${error.message || 'Unknown error'}`);
                 }
+
+                document.getElementById('roomSelectionSection').classList.add('hidden');
+                document.getElementById('roomNameDisplay').textContent = `Room: ${roomName}`;
+                handleExistingParticipants();
+
+                // Attempt to publish local tracks
+                try {
+                    const localTracks = await window.LivekitClient.createLocalTracks({
+                        audio: true,
+                        video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
+                    }).catch(error => {
+                        console.warn('Failed to access camera/microphone:', error);
+                        showMessage('roomMessage', 'No camera or microphone available. Joining without media.', 'success');
+                        return []; // Return empty array to proceed without tracks
+                    });
+
+                    for (const track of localTracks) {
+                        await currentRoom.localParticipant.publishTrack(track);
+                        console.log('Published local track:', track.kind);
+                        handleTrack(track, currentRoom.localParticipant, true);
+                    }
+                } catch (error) {
+                    console.error('Unexpected error while handling tracks:', error);
+                    showMessage('roomMessage', 'Error setting up media, but joined room.', 'success');
+                }
+
+                showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
             } catch (error) {
-                console.error('Unexpected error while handling tracks:', error);
-                showMessage('roomMessage', 'Error setting up media, but joined room.', 'success');
+                console.error('Join room error:', error);
+                showMessage('roomMessage', error.message || 'Failed to join room. Please check your network or server settings.', 'error');
+                joinBtn.textContent = 'Join Room';
+                joinBtn.disabled = false;
+                return;
             } finally {
                 joinBtn.disabled = false;
                 if (joinBtn.textContent === 'Joining...') {
                     joinBtn.textContent = 'Join Room';
                 }
             }
-
-            showMessage('roomMessage', `Connected to ${roomName}!`, 'success');
         }
 
         function setupRoomEventListeners() {
