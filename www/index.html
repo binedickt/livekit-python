@@ -562,6 +562,10 @@
                 const localTracks = await window.LivekitClient.createLocalTracks({
                     audio: true,
                     video: { resolution: { width: 640, height: 480 }, frameRate: 15 }
+                }).catch(error => {
+                    console.warn('Failed to access camera/microphone:', error);
+                    showMessage('roomMessage', 'No camera or microphone available. Joining without media.', 'success');
+                    return []; // Return empty array to proceed without tracks
                 });
 
                 for (const track of localTracks) {
@@ -570,9 +574,8 @@
                     handleTrack(track, currentRoom.localParticipant, true);
                 }
             } catch (error) {
-                console.error('Failed to publish local tracks:', error);
-                showMessage('roomMessage', 'Failed to access camera/microphone', 'error');
-                throw error;
+                console.error('Unexpected error while handling tracks:', error);
+                showMessage('roomMessage', 'Error setting up media, but joined room.', 'success');
             } finally {
                 joinBtn.disabled = false;
                 if (joinBtn.textContent === 'Joining...') {
