@@ -549,25 +549,11 @@
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.error || 'Failed to get access token');
 
-                console.log('Token fetched:', { url: data.url, token: data.token.substring(0, 10) + '...' }); // Log partial token for security
-
-                // Verify server reachability
-                try {
-                    const ws = new WebSocket(data.url);
-                    await new Promise((resolve, reject) => {
-                        ws.onopen = () => {
-                            console.log('WebSocket connection to server successful');
-                            ws.close();
-                            resolve();
-                        };
-                        ws.onerror = () => reject(new Error('Failed to connect to WebSocket server'));
-                        ws.onclose = () => reject(new Error('WebSocket connection closed unexpectedly'));
-                        setTimeout(() => reject(new Error('WebSocket connection timeout')), 5000);
-                    });
-                } catch (error) {
-                    console.error('Server reachability check failed:', error);
-                    throw new Error('Cannot reach the LiveKit server. Please check your network or server configuration.');
-                }
+                console.log('Token fetched:', { 
+                    url: data.url, 
+                    token: data.token.substring(0, 10) + '...', // Log partial token for security
+                    roomName 
+                });
 
                 // Initialize room
                 currentRoom = new window.LivekitClient.Room({
@@ -576,7 +562,10 @@
                     autoSubscribe: true
                 });
 
-                // Add connection error listener
+                // Log ICE servers for debugging
+                console.log('ICE servers:', currentRoom.getConfiguration()?.iceServers || 'Not set (using server defaults)');
+
+                // Add connection error listeners
                 currentRoom.on(window.LivekitClient.RoomEvent.ConnectionStateChanged, (state) => {
                     console.log('Connection state changed:', state);
                     if (state === 'disconnected') {
@@ -584,13 +573,31 @@
                     }
                 });
 
+                currentRoom.on(window.LivekitClient.RoomEvent.ConnectionError, (error) => {
+                    console.error('Connection error:', error);
+                    showMessage('roomMessage', `Connection failed: ${error.message || 'Unknown error'}`, 'error');
+                });
+
                 setupRoomEventListeners();
-                try {
-                    await currentRoom.connect(data.url, data.token);
-                    console.log('Connected to room:', roomName);
-                } catch (error) {
-                    console.error('Room connection failed:', error);
-                    throw new Error(`Failed to connect to room: ${error.message || 'Unknown error'}`);
+
+                // Attempt to connect with retries
+                let retries = 3;
+                let lastError = null;
+                for (let attempt = 1; attempt <= retries; attempt++) {
+                    try {
+                        console.log(`Connection attempt ${attempt}/${retries} to ${data.url}`);
+                        await currentRoom.connect(data.url, data.token);
+                        console.log('Connected to room:', roomName);
+                        break; // Success, exit retry loop
+                    } catch (error) {
+                        console.error(`Attempt ${attempt} failed:`, error);
+                        lastError = error;
+                        if (attempt === retries) {
+                            throw new Error(`Failed to connect after ${retries} attempts: ${error.message || 'Unknown error'}`);
+                        }
+                        // Wait 2 seconds before retrying
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                    }
                 }
 
                 document.getElementById('roomSelectionSection').classList.add('hidden');
